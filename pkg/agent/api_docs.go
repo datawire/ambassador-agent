@@ -18,7 +18,6 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 
-	amb "github.com/datawire/ambassador/v2/pkg/api/getambassador.io/v2"
 	"github.com/datawire/ambassador/v2/pkg/kates"
 	snapshotTypes "github.com/datawire/ambassador/v2/pkg/snapshot/v1"
 	"github.com/datawire/dlib/dlog"
@@ -88,8 +87,8 @@ func (a *APIDocsStore) StateOfWorld() []*snapshotTypes.APIDoc {
 	return toAPIDocs(a.store.getAll())
 }
 
-func getProcessableMappingsFromSnapshot(snapshot *snapshotTypes.Snapshot) []*v3alpha1.AmbassadorMapping {
-	processableMappings := []*v3alpha1.AmbassadorMapping{}
+func getProcessableMappingsFromSnapshot(snapshot *snapshotTypes.Snapshot) []*v3alpha1.Mapping {
+	processableMappings := []*v3alpha1.Mapping{}
 	if snapshot == nil || snapshot.Kubernetes == nil {
 		return processableMappings
 	}
@@ -107,7 +106,7 @@ func getProcessableMappingsFromSnapshot(snapshot *snapshotTypes.Snapshot) []*v3a
 	return processableMappings
 }
 
-func (a *APIDocsStore) scrape(ctx context.Context, mappings []*v3alpha1.AmbassadorMapping) {
+func (a *APIDocsStore) scrape(ctx context.Context, mappings []*v3alpha1.Mapping) {
 	defer func() {
 		// Once we are finished retrieving mapping docs, delete anything we
 		// don't need anymore
@@ -168,7 +167,7 @@ func (a *APIDocsStore) scrape(ctx context.Context, mappings []*v3alpha1.Ambassad
 	}
 }
 
-func extractQueryableDocsURL(mapping *v3alpha1.AmbassadorMapping) (*url.URL, error) {
+func extractQueryableDocsURL(mapping *v3alpha1.Mapping) (*url.URL, error) {
 	mappingDocsPath := mapping.Spec.Docs.Path
 	mappingRewrite := "/"
 	if mapping.Spec.Rewrite != nil {
@@ -293,7 +292,7 @@ func newOpenAPI(ctx context.Context, docBytes []byte, baseURL string, prefix str
 	}
 }
 
-func buildMappingRequestHeaders(mappingHeaders map[string]amb.BoolOrString) []Header {
+func buildMappingRequestHeaders(mappingHeaders map[string]v3alpha1.BoolOrString) []Header {
 	headers := []Header{}
 
 	for key, headerValue := range mappingHeaders {
