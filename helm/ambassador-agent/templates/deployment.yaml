@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ambassador-agent.fullname" . }}
+  namespace: {{ include "ambassador-agent.namespace" . }}
+  labels:
+    {{- include "ambassador-agent.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ambassador-agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "ambassador-agent.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ambassador-agent.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ include "ambassador-agent.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: AGENT_NAMESPACE
+              valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+            - name: AGENT_CONFIG_RESOURCE_NAME
+              value: {{ include "ambassador-agent.fullname" . }}-agent-cloud-token
+            - name: RPC_CONNECTION_ADDRESS
+              value: {{ .Values.rpcAddress }}
+            - name: AES_SNAPSHOT_URL
+              value: "http://{{ include "ambassador-agent.fullname" . }}-admin.{{ include "ambassador-agent.namespace" . }}:{{ .Values.adminService.snapshotPort }}/snapshot-external"
+  {{ if .Values.progressDeadline }}
+  progressDeadlineSeconds: {{ .Values.progressDeadline }}
+  {{ - end }}
