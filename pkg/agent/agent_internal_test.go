@@ -18,8 +18,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/datawire/ambassador-agent/pkg/api/agent"
 	"github.com/datawire/dlib/dlog"
-	"github.com/emissary-ingress/emissary/v3/pkg/api/agent"
 	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
