@@ -20,4 +20,4 @@ generate:
 
 .PHONY: image
 image:
-	docker build --tag datawire/ambassador-agent:${VERSION} .
+	docker build --tag ambassador/ambassador-agent:${VERSION} .
