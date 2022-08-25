@@ -3,7 +3,7 @@ package agent_test
 import (
 	"testing"
 
-	"github.com/emissary-ingress/emissary/v3/pkg/agent"
+	"github.com/datawire/ambassador-agent/pkg/agent"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
