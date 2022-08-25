@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/emissary-ingress/emissary/v3/pkg/agent"
+	"github.com/datawire/ambassador-agent/pkg/agent"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
