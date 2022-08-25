@@ -1,15 +1,16 @@
 package agent
 
 import (
+	"net"
+	"testing"
+	"time"
+
+	"github.com/datawire/ambassador-agent/pkg/api/agent"
 	"github.com/datawire/dlib/dlog"
-	"github.com/emissary-ingress/emissary/v3/pkg/api/agent"
 	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/peer"
-	"net"
-	"testing"
-	"time"
 )
 
 var (
