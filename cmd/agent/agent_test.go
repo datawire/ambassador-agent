@@ -16,9 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	api "github.com/datawire/ambassador-agent/pkg/api/agent"
+
 	"github.com/datawire/dlib/dexec"
 	"github.com/datawire/dlib/dlog"
-	"github.com/emissary-ingress/emissary/v3/pkg/api/agent"
+
 	"github.com/emissary-ingress/emissary/v3/pkg/dtest"
 	"github.com/emissary-ingress/emissary/v3/pkg/k8s"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
@@ -74,9 +76,9 @@ func TestAgentE2E(t *testing.T) {
 	assert.NotEmpty(t, ambSnapshot.Kubernetes.ArgoApplications, "No argo applications found in snapshot")
 }
 
-func getAgentComSnapshots(t *testing.T, ctx context.Context, kubeconfig string, cli *kates.Client, waitArgo bool) (*agent.Snapshot, *snapshotTypes.Snapshot) {
+func getAgentComSnapshots(t *testing.T, ctx context.Context, kubeconfig string, cli *kates.Client, waitArgo bool) (*api.Snapshot, *snapshotTypes.Snapshot) {
 	found := false
-	reportSnapshot := &agent.Snapshot{}
+	reportSnapshot := &api.Snapshot{}
 	ambSnapshot := &snapshotTypes.Snapshot{}
 
 	// now we're going to go copy the snapshot.json file from our fake agentcom
