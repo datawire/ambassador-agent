@@ -13,7 +13,7 @@ you can take a look at this
 To trigger the publish workfow, run the following commands:
 
 ```
-git tag --annotate --message='Releasing version vSEMVER'  vSEMVER
+git tag --annotate --message='Releasing version vSEMVER' vSEMVER
 git push origin vSEMVER
 ```
 
