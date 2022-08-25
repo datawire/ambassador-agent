@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -8,7 +9,7 @@ import (
 )
 
 func main() {
-	err := agent.Main()
+	err := agent.Main(context.Background(), "", os.Args[1:]...)
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "error executing from argparser: %v", err)
 		os.Exit(1)
