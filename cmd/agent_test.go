@@ -1,4 +1,4 @@
-package agent_test
+package main_test
 
 import (
 	"bytes"
