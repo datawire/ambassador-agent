@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -10,10 +11,12 @@ import (
 	apiv1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/datawire/dlib/dlog"
+	"github.com/datawire/dtest"
 
-	"github.com/emissary-ingress/emissary/v3/pkg/dtest"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 )
 
@@ -23,6 +26,7 @@ type BasicTestSuite struct {
 	ctx context.Context
 
 	cli       *kates.Client
+	clientset *kubernetes.Clientset
 	namespace string
 	name      string
 
@@ -33,14 +37,17 @@ func TestBasicTestSuite(t *testing.T) {
 	suite.Run(t, &BasicTestSuite{})
 }
 
-func (s *BasicTestSuite) SetupTest() {
+func (s *BasicTestSuite) SetupSuite() {
 	s.namespace = "ambassador-test"
 	s.name = "ambassador-agent"
 	s.ctx = dlog.NewTestContext(s.T(), false)
 
-	kubeconfig := dtest.KubeVersionConfig(s.ctx, dtest.Kube22)
+	config, err := clientcmd.BuildConfigFromFlags("", os.Getenv("KUBECONFIG"))
+	s.Require().NoError(err)
+	s.clientset, err = kubernetes.NewForConfig(config)
+	s.Require().NoError(err)
 
-	var err error
+	kubeconfig := dtest.KubeVersionConfig(s.ctx, dtest.Kube22)
 	s.cli, err = kates.NewClient(kates.ClientConfig{Kubeconfig: kubeconfig})
 	s.NoError(err)
 
@@ -54,6 +61,15 @@ func (s *BasicTestSuite) SetupTest() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: s.namespace,
+			},
+		},
+		apiv1.ServiceAccount{
+			TypeMeta: metav1.TypeMeta{
+				Kind: "ServiceAccount",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      s.name,
+				Namespace: s.namespace,
 			},
 		},
 		rbacv1.ClusterRole{
@@ -71,7 +87,6 @@ func (s *BasicTestSuite) SetupTest() {
 						"services",
 						"secrets",
 						"configmaps",
-						"pods",
 					},
 					Verbs: []string{
 						"get",
@@ -101,13 +116,16 @@ func (s *BasicTestSuite) SetupTest() {
 				},
 			},
 		},
-		apiv1.ServiceAccount{
+		apiv1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
-				Kind: "ServiceAccount",
+				Kind: "ConfigMap",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      s.name,
+				Name:      s.name + "-cloud-token",
 				Namespace: s.namespace,
+			},
+			Data: map[string]string{
+				"CLOUD_CONNECT_TOKEN": "sometoken",
 			},
 		},
 		apiv1.Pod{
@@ -135,7 +153,7 @@ func (s *BasicTestSuite) SetupTest() {
 		s.Require().NoError(err)
 	}
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(10 * time.Second)
 }
 
 func (s *BasicTestSuite) TearDownSuite() {
@@ -147,7 +165,7 @@ func (s *BasicTestSuite) TearDownSuite() {
 
 func (s *BasicTestSuite) TestStandalone_StayAlive() {
 	// lets make sure the agent came up and stays up
-	time.Sleep(time.Second * 10)
+	time.Sleep(5 * time.Second)
 
 	agentPod := apiv1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -164,5 +182,14 @@ func (s *BasicTestSuite) TestStandalone_StayAlive() {
 	s.NotEmpty(agentPod.Status.ContainerStatuses)
 	s.True(agentPod.Status.ContainerStatuses[0].Ready)
 
-	s.NoError(err)
+	logsReader, err := s.clientset.CoreV1().
+		Pods(s.namespace).
+		GetLogs(s.name, &apiv1.PodLogOptions{}).
+		Stream(s.ctx)
+	s.Require().NoError(err)
+
+	logBytes, err := io.ReadAll(logsReader)
+	s.Require().NoError(err)
+
+	s.NotContains(string(logBytes), "rror")
 }
