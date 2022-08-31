@@ -1,0 +1,3 @@
+*.yaml.o
+*.log
+**/.vscode

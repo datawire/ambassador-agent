@@ -23,3 +23,7 @@ generate:
 .PHONY: image
 image:
 	docker build --tag ambassador/ambassador-agent:${A8R_AGENT_VERSION} .
+
+.PHONY: itest
+itest:
+	go test ./integration_tests/...
