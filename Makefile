@@ -1,8 +1,10 @@
+A8R_AGENT_VERSION ?= "dev-latest"
+
 .PHONY: build
 build: generate
 	CGO_ENABLED=0 go build \
 	-trimpath \
-	-ldflags=-X=main.version=${VERSION} \
+	-ldflags=-X=main.version=${A8R_AGENT_VERSION} \
 	-o=ambassador-agent \
 	./cmd/main.go
 
@@ -20,4 +22,8 @@ generate:
 
 .PHONY: image
 image:
-	docker build --tag ambassador/ambassador-agent:${VERSION} .
+	docker build --tag ambassador/ambassador-agent:${A8R_AGENT_VERSION} .
+
+.PHONY: itest
+itest:
+	go test ./integration_tests/...
