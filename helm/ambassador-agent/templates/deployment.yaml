@@ -44,8 +44,12 @@ spec:
               value: {{ include "ambassador-agent.fullname" . }}-agent-cloud-token
             - name: RPC_CONNECTION_ADDRESS
               value: {{ .Values.rpcAddress }}
+              {{- if .Values.edgestack.agent }}
+              {{- with .Values.edgestack.agent }}
             - name: AES_SNAPSHOT_URL
-              value: "http://{{ include "ambassador-agent.fullname" . }}-admin.{{ include "ambassador-agent.namespace" . }}:{{ .Values.adminService.snapshotPort }}/snapshot-external"
+              value: "http://{{ required "A value must be entered for all edgestack.agent entries" .name  }}-admin.{{ required "A value must be entered for all edgestack.agent entries" .namespace }}:{{ required "A value must be entered for all edgestack.agent entries" .snapshotPort }}/snapshot-external"
+              {{- end }}
+              {{- end }}
   {{ if .Values.progressDeadline }}
   progressDeadlineSeconds: {{ .Values.progressDeadline }}
   {{ - end }}
