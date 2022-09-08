@@ -55,6 +55,12 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
   # targetMemoryUtilizationPercentage: 80
 
+edgestack:
+#  agent:
+#    name:
+#    namespace:
+#    snapshotPort:
+
 rpcAddress: ""
 
 progressDeadline: 0
