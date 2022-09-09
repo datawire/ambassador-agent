@@ -9,7 +9,7 @@ jobs:
     if: ${{ github.event.label.name == 'ok to test' }}
     steps:
       - name: Remove label
-        uses: andymckay/label@master
+        uses: andymckay/labeler@master
         with:
           remove-labels: "ok to test"
         if: always()
