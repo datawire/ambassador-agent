@@ -3,10 +3,9 @@ package agent_test
 import (
 	"testing"
 
+	"github.com/datawire/ambassador-agent/pkg/agent"
+	agentapi "github.com/datawire/ambassador-agent/pkg/api/agent"
 	"github.com/datawire/dlib/dlog"
-	"github.com/emissary-ingress/emissary/v3/pkg/agent"
-	agentTypes "github.com/emissary-ingress/emissary/v3/pkg/api/agent"
-	agentapi "github.com/emissary-ingress/emissary/v3/pkg/api/agent"
 )
 
 func TestHandleDirective(t *testing.T) {
@@ -15,7 +14,7 @@ func TestHandleDirective(t *testing.T) {
 	a := &agent.Agent{}
 	dh := &agent.BasicDirectiveHandler{}
 
-	d := &agentTypes.Directive{ID: "one"}
+	d := &agentapi.Directive{ID: "one"}
 
 	dh.HandleDirective(ctx, a, d)
 }
@@ -27,7 +26,7 @@ func TestHandleSecretSyncDirective(t *testing.T) {
 	a := &agent.Agent{}
 	dh := &agent.BasicDirectiveHandler{}
 
-	d := &agentTypes.Directive{
+	d := &agentapi.Directive{
 		ID: "one",
 		Commands: []*agentapi.Command{
 			{

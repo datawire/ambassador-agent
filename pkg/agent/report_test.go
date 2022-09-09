@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/emissary-ingress/emissary/v3/pkg/agent"
-	agentTypes "github.com/emissary-ingress/emissary/v3/pkg/api/agent"
+	"github.com/datawire/ambassador-agent/pkg/agent"
+	agentTypes "github.com/datawire/ambassador-agent/pkg/api/agent"
 	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 )
 

@@ -319,6 +319,7 @@ func (a *Agent) handleAPIKeyConfigChange(ctx context.Context, secrets []kates.Se
 			return
 		}
 	}
+
 	// so if we got here, we know something changed, but a config map
 	// nor a secret exist, which means they never existed or they got
 	// deleted. in this case, we fall back to the env var (which is
