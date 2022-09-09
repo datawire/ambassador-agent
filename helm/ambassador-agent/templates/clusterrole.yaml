@@ -63,7 +63,7 @@ rules:
   resources: [ "configmaps" ]
   verbs: [ "get", "list", "watch" ]
 ---
-{{- if .Values.agent.createArgoRBAC }}
+{{- if .Values.rbac.argo }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

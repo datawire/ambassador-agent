@@ -73,5 +73,7 @@ docker:
 
 rbac:
   nameOverride: ""
+  namespaces: []
+  argo: true
 
 createNamespace: false
