@@ -1,4 +1,6 @@
-A8R_AGENT_VERSION ?= "dev-latest"
+A8R_AGENT_VERSION ?= dev-latest
+DEV_REGISTRY ?= datawiredev
+IMAGE = ${DEV_REGISTRY}/ambassador-agent:${A8R_AGENT_VERSION}
 
 .PHONY: build
 build: generate
@@ -22,8 +24,17 @@ generate:
 
 .PHONY: image
 image:
-	docker build --tag ambassador/ambassador-agent:${A8R_AGENT_VERSION} .
+	docker build --tag $(IMAGE) .
+
+.PHONY: image-push
+image-push: image
+	docker push $(IMAGE)
+
+.PHONY: image-tar
+image-tar: image
+	mkdir -p ./build-output
+	docker save $(IMAGE) > ./build-output/ambassador-agent-image.tar
 
 .PHONY: itest
-itest:
-	go test ./integration_tests/...
+itest: image-push
+	go test -count=1 ./integration_tests/...
