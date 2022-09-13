@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ambassador-agent.fullname" . }}
+  namespace: {{ include "ambassador-agent.namespace" . }}
+  labels:
+    {{- include "ambassador-agent.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ambassador-agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "ambassador-agent.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ambassador-agent.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ include "ambassador-agent.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: AGENT_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: AGENT_CONFIG_RESOURCE_NAME
+              value: {{ include "ambassador-agent.fullname" . }}-agent-cloud-token
+            - name: RPC_CONNECTION_ADDRESS
+              value: {{ .Values.rpcAddress }}
+            {{- if .Values.edgestack }}
+            {{- if .Values.edgestack.agent }}
+            {{- with .Values.edgestack.agent }}
+            - name: AES_SNAPSHOT_URL
+              value: "http://{{ required "A value must be entered for all edgestack.agent entries" .name  }}-admin.{{ required "A value must be entered for all edgestack.agent entries" .namespace }}:{{ required "A value must be entered for all edgestack.agent entries" .snapshotPort }}/snapshot-external"
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{ if .Values.rbac.namespaces }}
+            - name: NAMESPACES_TO_WATCH
+              value: {{ join "," .Values.rbac.namespaces }}
+            {{ end }}
+  {{ if .Values.progressDeadline }}
+  progressDeadlineSeconds: {{ .Values.progressDeadline }}
+  {{- end }}
