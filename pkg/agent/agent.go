@@ -139,14 +139,6 @@ type Agent struct {
 	watchers       *Watchers
 }
 
-func getEnvWithDefault(envVarKey string, defaultValue string) string {
-	value := os.Getenv(envVarKey)
-	if value == "" {
-		value = defaultValue
-	}
-	return value
-}
-
 // New returns a new Agent.
 func NewAgent(
 	directiveHandler DirectiveHandler,
