@@ -7,7 +7,7 @@ import (
 	"github.com/datawire/k8sapi/pkg/k8sapi"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/kubernetes"
 )
 
 type Watchers struct {
@@ -18,7 +18,7 @@ type Watchers struct {
 	endpointWatcher *k8sapi.Watcher[*kates.Endpoints]
 }
 
-func NewWatchers(appClient rest.Interface, coreClient rest.Interface) *Watchers {
+func NewWatchers(clientset *kubernetes.Clientset) *Watchers {
 	// This function compares the recieved object with the cached object
 	// and decides whether an update should be pushed
 	compareFunc := func(o1, o2 runtime.Object) bool {
@@ -26,10 +26,14 @@ func NewWatchers(appClient rest.Interface, coreClient rest.Interface) *Watchers 
 		return true
 	}
 
+	appClient := clientset.AppsV1().RESTClient()
+	coreClient := clientset.CoreV1().RESTClient()
+
 	cond := &sync.Cond{
 		L: &sync.Mutex{},
 	}
 
+	// TODO scoped agent logic
 	watchedNs := "" // empty string watches all ns
 
 	return &Watchers{
@@ -54,7 +58,7 @@ type ConfigWatchers struct {
 	secretWatcher *k8sapi.Watcher[*kates.Secret]
 }
 
-func NewConfigWatchers(client rest.Interface, watchedNs string) *ConfigWatchers {
+func NewConfigWatchers(clientset *kubernetes.Clientset, watchedNs string) *ConfigWatchers {
 	// This function compares the recieved object with the cached object
 	// and decides whether an update should be pushed
 	compareFunc := func(o1, o2 runtime.Object) bool {
@@ -62,13 +66,15 @@ func NewConfigWatchers(client rest.Interface, watchedNs string) *ConfigWatchers 
 		return true
 	}
 
+	coreClient := clientset.CoreV1().RESTClient()
+
 	cond := &sync.Cond{
 		L: &sync.Mutex{},
 	}
 
 	return &ConfigWatchers{
-		mapsWatcher:   k8sapi.NewWatcher("configmaps", watchedNs, client, &kates.ConfigMap{}, cond, compareFunc),
-		secretWatcher: k8sapi.NewWatcher("secrets", watchedNs, client, &kates.Secret{}, cond, compareFunc),
+		mapsWatcher:   k8sapi.NewWatcher("configmaps", watchedNs, coreClient, &kates.ConfigMap{}, cond, compareFunc),
+		secretWatcher: k8sapi.NewWatcher("secrets", watchedNs, coreClient, &kates.Secret{}, cond, compareFunc),
 		cond:          cond,
 	}
 }

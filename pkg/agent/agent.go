@@ -80,13 +80,11 @@ type Agent struct {
 	connAddress                 string
 
 	// State managed by the director via the retriever
-
 	reportingStopped bool          // Did the director say don't report?
 	minReportPeriod  time.Duration // How often can we Report?
 	lastDirectiveID  string
 
 	// The state of reporting
-
 	reportToSend   *agent.Snapshot // Report that's ready to send
 	reportRunning  atomicBool      // Is a report being sent right now?
 	reportComplete chan error      // Report() finished with this error
@@ -134,7 +132,12 @@ type Agent struct {
 	diagnosticsReportRunning  atomicBool // Is a report being sent right now?
 	diagnosticsReportComplete chan error // Report() finished with this error
 
+	// Stand-alone config
+	installedBy string // if not installed by emissary, generate snapshots
+	clusterId   string // cluster id used in generated snapshots
+
 	// k8sapi watchers
+	clientset      *kubernetes.Clientset
 	configWatchers *ConfigWatchers
 	watchers       *Watchers
 }
@@ -187,9 +190,6 @@ func NewAgent(
 		panic(err.Error())
 	}
 
-	appClient := clientset.AppsV1().RESTClient()
-	coreClient := clientset.CoreV1().RESTClient()
-
 	/*
 		rolloutGvr, _ := schema.ParseResourceArg("rollouts.v1alpha1.argoproj.io")
 		rolloutCallback := dc.WatchGeneric(ctx, ns, rolloutGvr)
@@ -218,9 +218,11 @@ func NewAgent(
 		rpcExtraHeaders:              rpcExtraHeaders,
 		aggregatedMetrics:            map[string][]*io_prometheus_client.MetricFamily{},
 		// k8sapi watchers
-		watchers:       NewWatchers(appClient, coreClient),
-		configWatchers: NewConfigWatchers(coreClient, agentNamespace),
+		clientset:      clientset,
+		watchers:       NewWatchers(clientset),
+		configWatchers: NewConfigWatchers(clientset, agentNamespace),
 		// TODO add other watchers
+		installedBy: os.Getenv("INSTALLED_BY"),
 	}
 }
 
@@ -366,8 +368,10 @@ func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) e
 	dlog.Info(ctx, "Agent is running...")
 
 	a.configWatchers.EnsureStarted(ctx)
+	// TODO wait for config sync
 	a.waitForAPIKey(ctx)
 	a.watchers.EnsureStarted(ctx)
+	// TODO wait for core sync
 
 	// The following is kates that im not sure we can replicate with k8sapi as currently exists
 	// leaving it in for now
@@ -413,6 +417,13 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 		return err
 	}
 
+	// if emissary is not present, self-gen snapshots
+	var clusterId string
+	if a.installedBy != "emissary" {
+		clusterId = GetClusterID(ctx, a.clientset) // get cluster id for ambMeta
+		a.SetReportDiagnosticsAllowed(false)       // disable amb daig reporting
+	}
+
 	configCh := k8sapi.Subscribe(ctx, a.configWatchers.cond)
 	a.apiDocsStore = NewAPIDocsStore()
 	applicationStore := NewApplicationStore()
@@ -454,10 +465,22 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 		// only ask ambassador for a snapshot if we're actually going to report it.
 		// if reportRunning is true, that means we're still in the quiet period
 		// after sending a report.
+		// if emissary is the owner, do all the things
 		if !a.reportingStopped && !a.reportRunning.Value() {
-			snapshot, err := getAmbSnapshotInfo(snapshotURL)
-			if err != nil {
-				dlog.Warnf(ctx, "Error getting snapshot from ambassador %+v", err)
+			// if emissary is present, get initial snapshot from emissary
+			// otherwise, create it
+			var snapshot *snapshotTypes.Snapshot
+			if a.installedBy == "emissary" {
+				snapshot, err = getAmbSnapshotInfo(snapshotURL)
+				if err != nil {
+					dlog.Warnf(ctx, "Error getting snapshot from ambassador %+v", err)
+				}
+			} else {
+				snapshot = &snapshotTypes.Snapshot{
+					AmbassadorMeta: &snapshotTypes.AmbassadorMetaInfo{
+						ClusterID: clusterId,
+					},
+				}
 			}
 			dlog.Debug(ctx, "Received snapshot in agent")
 			if err = a.ProcessSnapshot(ctx, snapshot, ambHost); err != nil {
@@ -478,9 +501,7 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 			}
 			a.ReportDiagnostics(ctx, agentDiagnostics)
 		}
-
 	}
-
 }
 
 func (a *Agent) MaybeReportSnapshot(ctx context.Context) {
