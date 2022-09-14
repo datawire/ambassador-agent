@@ -5,7 +5,8 @@ RUN apk update && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
 WORKDIR /build
 COPY . .    
-RUN make build
+RUN export GOARCH=amd64 && export GOOS=linux && make build
+
 
 FROM alpine:3.15
 COPY --from=build-stage /build/ambassador-agent /usr/local/bin

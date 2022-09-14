@@ -17,7 +17,12 @@ import (
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/datawire/ambassador-agent/pkg/api/agent"
 	"github.com/datawire/dlib/dlog"
@@ -130,6 +135,10 @@ type Agent struct {
 	// The state of diagnostic reporting
 	diagnosticsReportRunning  atomicBool // Is a report being sent right now?
 	diagnosticsReportComplete chan error // Report() finished with this error
+
+	ambassadorAdminSvcIsAvailable bool
+	ambassadorAdminSvcMutex       sync.RWMutex
+	ambassadorAdminNamespace      string
 }
 
 func getEnvWithDefault(envVarKey string, defaultValue string) string {
@@ -187,6 +196,7 @@ func NewAgent(
 		ambassadorAPIKeyEnvVarValue:  os.Getenv(cloudConnectTokenKey),
 		connAddress:                  os.Getenv("RPC_CONNECTION_ADDRESS"),
 		agentNamespace:               getEnvWithDefault("AGENT_NAMESPACE", "ambassador"),
+		ambassadorAdminNamespace:     getEnvWithDefault("AES_ADMIN_NAMESPACE", "ambassador"),
 		agentCloudResourceConfigName: getEnvWithDefault("AGENT_CONFIG_RESOURCE_NAME", "ambassador-agent-cloud-token"),
 		directiveHandler:             directiveHandler,
 		reportRunning:                atomicBool{value: false},
@@ -398,6 +408,43 @@ func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) e
 	applicationGvr, _ := schema.ParseResourceArg("applications.v1alpha1.argoproj.io")
 	applicationCallback := dc.WatchGeneric(ctx, ns, applicationGvr)
 
+	if a.ambassadorAdminNamespace != "" {
+		config, err := rest.InClusterConfig()
+		if err != nil {
+			return err
+		}
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			return err
+		}
+		watcher, err := clientset.CoreV1().
+			Services(a.ambassadorAdminNamespace).
+			Watch(ctx, metav1.ListOptions{
+				Watch: true,
+			})
+		if err != nil {
+			return err
+		}
+		defer watcher.Stop()
+		go func() {
+			for event := range watcher.ResultChan() {
+				svc := event.Object.(*corev1.Service)
+				if svc.ObjectMeta.Name != "ambassador-admin" {
+					continue
+				}
+
+				a.ambassadorAdminSvcMutex.Lock()
+				switch event.Type {
+				case watch.Added:
+					a.ambassadorAdminSvcIsAvailable = true
+				case watch.Deleted:
+					a.ambassadorAdminSvcIsAvailable = false
+				}
+				a.ambassadorAdminSvcMutex.Unlock()
+			}
+		}()
+	}
+
 	return a.watch(ctx, snapshotURL, diagnosticsURL, configAcc, coreAcc, rolloutCallback, applicationCallback)
 }
 
@@ -510,7 +557,10 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, c
 		// only ask ambassador for a snapshot if we're actually going to report it.
 		// if reportRunning is true, that means we're still in the quiet period
 		// after sending a report.
-		if !a.reportingStopped && !a.reportRunning.Value() {
+		a.ambassadorAdminSvcMutex.RLock()
+		adminSvcAvailable := a.ambassadorAdminSvcIsAvailable
+		a.ambassadorAdminSvcMutex.RUnlock()
+		if adminSvcAvailable && !a.reportingStopped && !a.reportRunning.Value() {
 			snapshot, err := getAmbSnapshotInfo(snapshotURL)
 			if err != nil {
 				dlog.Warnf(ctx, "Error getting snapshot from ambassador %+v", err)

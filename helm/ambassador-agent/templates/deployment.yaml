@@ -41,7 +41,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: AGENT_CONFIG_RESOURCE_NAME
-              value: {{ include "ambassador-agent.fullname" . }}-agent-cloud-token
+              value: {{ include "ambassador-agent.fullname" . }}-cloud-token
             - name: RPC_CONNECTION_ADDRESS
               value: {{ .Values.rpcAddress }}
             {{- if .Values.edgestack }}
@@ -50,6 +50,10 @@ spec:
             - name: AES_SNAPSHOT_URL
               value: "http://{{ required "A value must be entered for all edgestack.agent entries" .name  }}-admin.{{ required "A value must be entered for all edgestack.agent entries" .namespace }}:{{ required "A value must be entered for all edgestack.agent entries" .snapshotPort }}/snapshot-external"
             {{- end }}
+            {{- end }}
+            {{- if .Values.edgestack.agent.namespace  }}
+            - name: AES_ADMIN_NAMESPACE
+              value: {{ .Values.edgestack.agent.namespace }}
             {{- end }}
             {{- end }}
             {{ if .Values.rbac.namespaces }}
