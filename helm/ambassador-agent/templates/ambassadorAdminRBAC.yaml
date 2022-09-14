@@ -1,9 +1,16 @@
+{{ $adminNS:="ambassador" }}
+{{ if .Values.edgstack }}
+{{ if .Values.edgstack.namespace }}
 {{ if .Values.edgestack.agent.namespace }}
+{{ $adminNS = .Values.edgestack.agent.namespace }}
+{{ end }}
+{{ end }}
+{{ end }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ include "ambassador-agent.fullname" . }}-admin-watcher
-  namespace: {{ .Value.edgestack.agent.namespace }}
+  namespace: {{ $adminNS }}
   labels:
     app.kubernetes.io/name: {{ include "ambassador-agent.name" . }}
     {{- include "ambassador-agent.labels" . | nindent 4 }}
@@ -16,7 +23,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: {{ include "ambassador-agent.fullname" . }}-admin-watcher
-  namespace: {{ .Value.edgestack.agent.namespace }}
+  namespace: {{ $adminNS }}
   labels:
     app.kubernetes.io/name: {{ include "ambassador-agent.name" . }}
     {{- include "ambassador-agent.labels" . | nindent 4 }}
@@ -28,4 +35,3 @@ subjects:
 - kind: ServiceAccount
   name: {{ include "ambassador-agent.fullname" . }}
   namespace: {{ include "ambassador-agent.namespace" . }}
-{{ end }}
