@@ -88,21 +88,14 @@ func main() {
 	dlog.Info(ctx, "metrics service listening on :8080")
 
 	grp := dgroup.NewGroup(ctx, dgroup.GroupConfig{})
-
 	grp.Go("metrics-server", func(ctx context.Context) error {
 		metricsServer := agent.NewMetricsServer(ambAgent.MetricsRelayHandler)
 		return metricsServer.Serve(ctx, metricsListener)
 	})
 
-	run := func(ctx context.Context) {
-		grp.Go("watch", func(ctx context.Context) error {
-			return ambAgent.Watch(ctx, snapshotURL, diagnosticsURL)
-		})
-	}
-
 	// use a Go context so we can tell the leaderelection code when we
 	// want to step down
-	ctx, cancel := context.WithCancel(ctx)
+	leaseCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// listen for interrupts or the Linux SIGTERM signal and cancel
@@ -135,9 +128,15 @@ func main() {
 	// use a go context to kill watchers OnStoppedLeading
 	var watchCtx context.Context
 	var watchCancel context.CancelFunc
+	run := func() {
+		grp.Go("watch", func(ctx context.Context) error {
+			watchCtx, watchCancel = context.WithCancel(ctx)
+			return ambAgent.Watch(watchCtx, snapshotURL, diagnosticsURL)
+		})
+	}
 
 	// start the leader election code loop
-	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
+	leaderelection.RunOrDie(leaseCtx, leaderelection.LeaderElectionConfig{
 		Lock: lock,
 		// IMPORTANT: you MUST ensure that any code you have that
 		// is protected by the lease must terminate **before**
@@ -153,8 +152,7 @@ func main() {
 			OnStartedLeading: func(ctx context.Context) {
 				// we're notified when we start - this is where you would
 				// usually put your code
-				watchCtx, watchCancel = context.WithCancel(ctx)
-				run(watchCtx)
+				run()
 			},
 			OnStoppedLeading: func() {
 				// we can do cleanup here
