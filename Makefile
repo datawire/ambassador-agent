@@ -3,7 +3,7 @@ DEV_REGISTRY ?= datawiredev
 IMAGE = ${DEV_REGISTRY}/ambassador-agent:${A8R_AGENT_VERSION}
 
 .PHONY: build
-build: generate
+build:
 	CGO_ENABLED=0 go build \
 	-trimpath \
 	-ldflags=-X=main.version=${A8R_AGENT_VERSION} \
@@ -38,3 +38,7 @@ image-tar: image
 .PHONY: itest
 itest: image-push
 	go test -count=1 ./integration_tests/...
+
+.PHONY: unit-test
+unit-test:
+	go test -count=1 ./cmd/... ./pkg/...
