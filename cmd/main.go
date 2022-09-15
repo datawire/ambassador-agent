@@ -42,7 +42,8 @@ func main() {
 	// creates the in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		klog.Fatal(err.Error())
+		dlog.Error(ctx, err.Error())
+		os.Exit(1)
 	}
 	// creates the clientset
 	clientset := kubernetes.NewForConfigOrDie(config)
@@ -71,7 +72,8 @@ func main() {
 	klogFlags := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	klog.InitFlags(klogFlags)
 	if err := klogFlags.Parse([]string{fmt.Sprintf("-stderrthreshold=%d", klogLevel), "-v=2", "-logtostderr=false"}); err != nil {
-		klog.Fatal(err.Error())
+		dlog.Error(ctx, err.Error())
+		os.Exit(1)
 	}
 	snapshotURL := getEnvWithDefault("AES_SNAPSHOT_URL", fmt.Sprintf(DefaultSnapshotURLFmt, ExternalSnapshotPort))
 	diagnosticsURL := getEnvWithDefault("AES_DIAGNOSTICS_URL", fmt.Sprintf(DefaultDiagnosticsURLFmt, AdminDiagnosticsPort))
@@ -83,7 +85,8 @@ func main() {
 
 	metricsListener, err := net.Listen("tcp", ":8080")
 	if err != nil {
-		klog.Fatal(err.Error())
+		dlog.Error(ctx, err.Error())
+		os.Exit(1)
 	}
 	dlog.Info(ctx, "metrics service listening on :8080")
 
@@ -105,8 +108,9 @@ func main() {
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-ch
-		klog.Info("Received termination, signaling shutdown")
+		dlog.Info(ctx, "Received termination, signaling shutdown")
 		leaseCancel()
+		os.Exit(0)
 	}()
 
 	// each call to the leaselock should have a unique id
@@ -150,8 +154,8 @@ func main() {
 		// the stated goal of the lease.
 		ReleaseOnCancel: true,
 		LeaseDuration:   60 * time.Second,
-		RenewDeadline:   15 * time.Second,
-		RetryPeriod:     5 * time.Second,
+		RenewDeadline:   40 * time.Second,
+		RetryPeriod:     8 * time.Second,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				// we're notified when we start - this is where you would
@@ -160,7 +164,7 @@ func main() {
 			},
 			OnStoppedLeading: func() {
 				// we can do cleanup here
-				klog.Infof("leader lost: %s", id)
+				dlog.Infof(leaseCtx, "leader lost: %s", id)
 				watchCancel()
 			},
 			OnNewLeader: func(identity string) {
@@ -169,14 +173,14 @@ func main() {
 					// I just got the lock
 					return
 				}
-				klog.Infof("new leader elected: %s", identity)
+				dlog.Infof(leaseCtx, "new leader elected: %s", identity)
 			},
 		},
 	})
 
 	err = grp.Wait()
 	if err != nil {
-		klog.Fatal(err.Error())
+		dlog.Error(ctx, err.Error())
 	}
 }
 

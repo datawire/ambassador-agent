@@ -132,13 +132,14 @@ type Agent struct {
 	diagnosticsReportComplete chan error // Report() finished with this error
 
 	// Stand-alone config
-	installedBy string // if not installed by emissary, generate snapshots
-	clusterId   string // cluster id used in generated snapshots
+	emissaryPresent bool   // if not installed by emissary, generate snapshots
+	clusterId       string // cluster id used in generated snapshots
 
 	// k8sapi watchers
-	clientset      *kubernetes.Clientset
-	configWatchers *ConfigWatchers
-	watchers       *Watchers
+	clientset         *kubernetes.Clientset
+	configWatchers    *ConfigWatchers
+	watchers          *Watchers
+	ambassadorWatcher *AmbassadorWatcher
 }
 
 // New returns a new Agent.
@@ -180,14 +181,6 @@ func NewAgent(
 		)
 	}
 
-	/*
-		rolloutGvr, _ := schema.ParseResourceArg("rollouts.v1alpha1.argoproj.io")
-		rolloutCallback := dc.WatchGeneric(ctx, ns, rolloutGvr)
-
-		applicationGvr, _ := schema.ParseResourceArg("applications.v1alpha1.argoproj.io")
-		applicationCallback := dc.WatchGeneric(ctx, ns, applicationGvr)
-	*/
-
 	return &Agent{
 		minReportPeriod:  reportPeriod,
 		reportComplete:   make(chan error),
@@ -206,11 +199,11 @@ func NewAgent(
 		rpcExtraHeaders:              rpcExtraHeaders,
 		aggregatedMetrics:            map[string][]*io_prometheus_client.MetricFamily{},
 		// k8sapi watchers
-		clientset:      clientset,
-		watchers:       NewWatchers(clientset),
-		configWatchers: NewConfigWatchers(clientset, agentNamespace),
+		clientset:         clientset,
+		watchers:          NewWatchers(clientset),
+		configWatchers:    NewConfigWatchers(clientset, agentNamespace),
+		ambassadorWatcher: NewAmbassadorWatcher(clientset, agentNamespace),
 		// TODO add other watchers
-		installedBy: os.Getenv("INSTALLED_BY"),
 	}
 }
 
@@ -360,6 +353,7 @@ func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) e
 	a.waitForAPIKey(ctx)
 	a.watchers.EnsureStarted(ctx)
 	// TODO wait for core sync
+	a.ambassadorWatcher.EnsureStarted(ctx)
 
 	// The following is kates that im not sure we can replicate with k8sapi as it currently exists
 	// leaving it in for now
@@ -405,14 +399,8 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 		return err
 	}
 
-	// if emissary is not present, self-gen snapshots
-	var clusterId string
-	if a.installedBy != "emissary" {
-		clusterId = GetClusterID(ctx, a.clientset) // get cluster id for ambMeta
-		a.SetReportDiagnosticsAllowed(false)       // disable amb daig reporting
-	}
-
 	configCh := k8sapi.Subscribe(ctx, a.configWatchers.cond)
+	ambCh := k8sapi.Subscribe(ctx, a.ambassadorWatcher.cond)
 	a.apiDocsStore = NewAPIDocsStore()
 	applicationStore := NewApplicationStore()
 	rolloutStore := NewRolloutStore()
@@ -431,6 +419,8 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 			// just a ticker, this will fallthru to the snapshot getting thing
 		case <-configCh:
 			a.handleAPIKeyConfigChange(ctx)
+		case <-ambCh:
+			a.handleAmbassadorEndpointChange(ctx)
 		case callback, ok := <-rolloutCallback:
 			if ok {
 				dlog.Debugf(ctx, "argo rollout callback: %v", callback.EventType)
@@ -450,6 +440,7 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 		case directive := <-a.newDirective:
 			a.directiveHandler.HandleDirective(ctx, a, directive)
 		}
+
 		// only ask ambassador for a snapshot if we're actually going to report it.
 		// if reportRunning is true, that means we're still in the quiet period
 		// after sending a report.
@@ -458,7 +449,7 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 			// if emissary is present, get initial snapshot from emissary
 			// otherwise, create it
 			var snapshot *snapshotTypes.Snapshot
-			if a.installedBy == "emissary" {
+			if a.emissaryPresent {
 				snapshot, err = getAmbSnapshotInfo(snapshotURL)
 				if err != nil {
 					dlog.Warnf(ctx, "Error getting snapshot from ambassador %+v", err)
@@ -466,7 +457,7 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 			} else {
 				snapshot = &snapshotTypes.Snapshot{
 					AmbassadorMeta: &snapshotTypes.AmbassadorMetaInfo{
-						ClusterID: clusterId,
+						ClusterID: a.clusterId,
 					},
 				}
 			}
@@ -490,6 +481,19 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 			a.ReportDiagnostics(ctx, agentDiagnostics)
 		}
 	}
+}
+
+func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context) {
+	for _, endpoint := range a.ambassadorWatcher.endpointWatcher.List(ctx) {
+		if endpoint.Name == "ambassador-admin" {
+			if a.clusterId == "" {
+				a.clusterId = GetClusterID(ctx, a.clientset) // get cluster id for ambMeta
+			}
+			a.SetReportDiagnosticsAllowed(false) // disable amb daig reporting
+			return
+		}
+	}
+	a.SetReportDiagnosticsAllowed(true) // disable amb daig reporting
 }
 
 func (a *Agent) MaybeReportSnapshot(ctx context.Context) {
