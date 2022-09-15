@@ -6,8 +6,7 @@ import (
 
 	"github.com/datawire/k8sapi/pkg/k8sapi"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/kubernetes"
 )
 
 type Watchers struct {
@@ -18,25 +17,22 @@ type Watchers struct {
 	endpointWatcher *k8sapi.Watcher[*kates.Endpoints]
 }
 
-func NewWatchers(appClient rest.Interface, coreClient rest.Interface) *Watchers {
-	// This function compares the recieved object with the cached object
-	// and decides whether an update should be pushed
-	compareFunc := func(o1, o2 runtime.Object) bool {
-		// TODO impl
-		return true
-	}
+func NewWatchers(clientset *kubernetes.Clientset) *Watchers {
+	appClient := clientset.AppsV1().RESTClient()
+	coreClient := clientset.CoreV1().RESTClient()
 
 	cond := &sync.Cond{
 		L: &sync.Mutex{},
 	}
 
+	// TODO scoped agent logic
 	watchedNs := "" // empty string watches all ns
 
 	return &Watchers{
-		mapsWatcher:     k8sapi.NewWatcher("configmaps", watchedNs, coreClient, &kates.ConfigMap{}, cond, compareFunc),
-		deployWatcher:   k8sapi.NewWatcher("deployments", watchedNs, appClient, &kates.Deployment{}, cond, compareFunc),
-		podWatcher:      k8sapi.NewWatcher("pods", watchedNs, coreClient, &kates.Pod{}, cond, compareFunc),
-		endpointWatcher: k8sapi.NewWatcher("endpoints", watchedNs, coreClient, &kates.Endpoints{}, cond, compareFunc),
+		mapsWatcher:     k8sapi.NewWatcher("configmaps", watchedNs, coreClient, &kates.ConfigMap{}, cond, nil),
+		deployWatcher:   k8sapi.NewWatcher("deployments", watchedNs, appClient, &kates.Deployment{}, cond, nil),
+		podWatcher:      k8sapi.NewWatcher("pods", watchedNs, coreClient, &kates.Pod{}, cond, nil),
+		endpointWatcher: k8sapi.NewWatcher("endpoints", watchedNs, coreClient, &kates.Endpoints{}, cond, nil),
 		cond:            cond,
 	}
 }
@@ -54,21 +50,16 @@ type ConfigWatchers struct {
 	secretWatcher *k8sapi.Watcher[*kates.Secret]
 }
 
-func NewConfigWatchers(client rest.Interface, watchedNs string) *ConfigWatchers {
-	// This function compares the recieved object with the cached object
-	// and decides whether an update should be pushed
-	compareFunc := func(o1, o2 runtime.Object) bool {
-		// TODO impl
-		return true
-	}
+func NewConfigWatchers(clientset *kubernetes.Clientset, watchedNs string) *ConfigWatchers {
+	coreClient := clientset.CoreV1().RESTClient()
 
 	cond := &sync.Cond{
 		L: &sync.Mutex{},
 	}
 
 	return &ConfigWatchers{
-		mapsWatcher:   k8sapi.NewWatcher("configmaps", watchedNs, client, &kates.ConfigMap{}, cond, compareFunc),
-		secretWatcher: k8sapi.NewWatcher("secrets", watchedNs, client, &kates.Secret{}, cond, compareFunc),
+		mapsWatcher:   k8sapi.NewWatcher("configmaps", watchedNs, coreClient, &kates.ConfigMap{}, cond, nil),
+		secretWatcher: k8sapi.NewWatcher("secrets", watchedNs, coreClient, &kates.Secret{}, cond, nil),
 		cond:          cond,
 	}
 }
@@ -76,4 +67,26 @@ func NewConfigWatchers(client rest.Interface, watchedNs string) *ConfigWatchers 
 func (w *ConfigWatchers) EnsureStarted(ctx context.Context) {
 	w.mapsWatcher.EnsureStarted(ctx, nil)
 	w.secretWatcher.EnsureStarted(ctx, nil)
+}
+
+type AmbassadorWatcher struct {
+	cond            *sync.Cond
+	endpointWatcher *k8sapi.Watcher[*kates.Endpoints]
+}
+
+func NewAmbassadorWatcher(clientset *kubernetes.Clientset, ns string) *AmbassadorWatcher {
+	coreClient := clientset.CoreV1().RESTClient()
+
+	cond := &sync.Cond{
+		L: &sync.Mutex{},
+	}
+
+	return &AmbassadorWatcher{
+		cond:            cond,
+		endpointWatcher: k8sapi.NewWatcher("endpoints", ns, coreClient, &kates.Endpoints{}, cond, nil),
+	}
+}
+
+func (w *AmbassadorWatcher) EnsureStarted(ctx context.Context) {
+	w.endpointWatcher.EnsureStarted(ctx, nil)
 }

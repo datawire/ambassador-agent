@@ -85,21 +85,18 @@ require (
 	github.com/argoproj/argo-rollouts v1.2.2
 	github.com/datawire/dlib v1.3.0
 	github.com/datawire/dtest v0.0.0-20210928162311-722b199c4c2f
-	github.com/datawire/k8sapi v0.0.0-20220913142237-d0cbde4f3b24
+	github.com/datawire/k8sapi v0.0.4
 	github.com/emissary-ingress/emissary/v3 v3.1.0
 	github.com/getkin/kin-openapi v0.97.0
-	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_model v0.2.0
-	github.com/spf13/cobra v1.4.0
 	github.com/stretchr/testify v1.8.0
 	google.golang.org/grpc v1.47.0
 	google.golang.org/protobuf v1.28.1
 	k8s.io/api v0.25.0
 	k8s.io/apimachinery v0.25.0
 	k8s.io/client-go v0.25.0
-	k8s.io/klog/v2 v2.70.1
 )
 
 require (
@@ -134,6 +131,7 @@ require (
 	github.com/go-openapi/swag v0.21.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
+	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/go-cmp v0.5.7 // indirect
@@ -170,6 +168,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/russross/blackfriday v1.6.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
+	github.com/spf13/cobra v1.4.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
 	go.starlark.net v0.0.0-20220203230714-bb14e151c28f // indirect
@@ -189,6 +188,7 @@ require (
 	k8s.io/apiserver v0.23.1 // indirect
 	k8s.io/cli-runtime v0.25.0 // indirect
 	k8s.io/component-base v0.25.0 // indirect
+	k8s.io/klog/v2 v2.70.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1 // indirect
 	k8s.io/kubectl v0.25.0 // indirect
 	k8s.io/kubernetes v1.23.1 // indirect
