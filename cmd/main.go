@@ -95,8 +95,8 @@ func main() {
 
 	// use a Go context so we can tell the leaderelection code when we
 	// want to step down
-	leaseCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	leaseCtx, leaseCancel := context.WithCancel(ctx)
+	defer leaseCancel()
 
 	// listen for interrupts or the Linux SIGTERM signal and cancel
 	// our context, which the leader election code will observe and
@@ -106,7 +106,7 @@ func main() {
 	go func() {
 		<-ch
 		klog.Info("Received termination, signaling shutdown")
-		cancel()
+		leaseCancel()
 	}()
 
 	// each call to the leaselock should have a unique id
@@ -126,10 +126,14 @@ func main() {
 	}
 
 	// use a go context to kill watchers OnStoppedLeading
-	var watchCtx context.Context
-	var watchCancel context.CancelFunc
+	var (
+		watchCtx    context.Context
+		watchCancel context.CancelFunc
+		i           int
+	)
 	run := func() {
-		grp.Go("watch", func(ctx context.Context) error {
+		i += 1
+		grp.Go(fmt.Sprintf("watch-%v", i), func(ctx context.Context) error {
 			watchCtx, watchCancel = context.WithCancel(ctx)
 			return ambAgent.Watch(watchCtx, snapshotURL, diagnosticsURL)
 		})
