@@ -69,7 +69,7 @@ jobs:
         if: steps.get_last_run.outputs.passed != 'success'
         uses: nick-invision/retry@v2.4.0
         with:
-          max_attemps: 3
+          max_attempts: 3
           timeout_minutes: 15
           command: |
             export DTEST_KUBECONFIG=${{ steps.kluster.outputs.kubeconfig }}
