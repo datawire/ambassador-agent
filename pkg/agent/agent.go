@@ -462,6 +462,7 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 					AmbassadorMeta: &snapshotTypes.AmbassadorMetaInfo{
 						ClusterID: a.clusterId,
 					},
+					Kubernetes: &snapshotTypes.KubernetesSnapshot{},
 				}
 			}
 			dlog.Debug(ctx, "Received snapshot in agent")
