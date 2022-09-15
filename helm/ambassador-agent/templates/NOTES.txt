@@ -1,0 +1,2 @@
+1. View your cluster at https://getambassador.io/cloud.
+  NOTE: It may takke a few minutes for your cluster to first appear.
