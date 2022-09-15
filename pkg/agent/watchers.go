@@ -28,6 +28,7 @@ func NewWatchers(clientset *kubernetes.Clientset) *Watchers {
 	// TODO scoped agent logic
 	watchedNs := "" // empty string watches all ns
 
+	// TODO equals func
 	return &Watchers{
 		mapsWatcher:     k8sapi.NewWatcher("configmaps", watchedNs, coreClient, &kates.ConfigMap{}, cond, nil),
 		deployWatcher:   k8sapi.NewWatcher("deployments", watchedNs, appClient, &kates.Deployment{}, cond, nil),
@@ -89,4 +90,34 @@ func NewAmbassadorWatcher(clientset *kubernetes.Clientset, ns string) *Ambassado
 
 func (w *AmbassadorWatcher) EnsureStarted(ctx context.Context) {
 	w.endpointWatcher.EnsureStarted(ctx, nil)
+}
+
+type SIWatcher struct {
+	cond           *sync.Cond
+	serviceWatcher *k8sapi.Watcher[*kates.Service]
+}
+
+func NewSIWatcher(clientset *kubernetes.Clientset) *SIWatcher {
+	coreClient := clientset.CoreV1().RESTClient()
+
+	cond := &sync.Cond{
+		L: &sync.Mutex{},
+	}
+
+	// TODO scoped agent logic
+	watchedNs := "" // empty string watches all ns
+
+	// TODO equals func
+	return &SIWatcher{
+		cond:           cond,
+		serviceWatcher: k8sapi.NewWatcher("service", watchedNs, coreClient, &kates.Service{}, cond, nil),
+	}
+}
+
+func (w *SIWatcher) EnsureStarted(ctx context.Context) {
+	w.serviceWatcher.EnsureStarted(ctx, nil)
+}
+
+func (w *SIWatcher) Cancel() {
+	w.serviceWatcher.Cancel()
 }
