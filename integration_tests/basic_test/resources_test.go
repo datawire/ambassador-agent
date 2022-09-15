@@ -72,6 +72,43 @@ func agentResources(namespace, name string) []any {
 				},
 			},
 		},
+		rbacv1.Role{
+			TypeMeta: metav1.TypeMeta{
+				Kind: "Role",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name + "-leaderelection",
+				Namespace: namespace,
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					APIGroups: []string{"coordination.k8s.io"},
+					Resources: []string{"leases"},
+					Verbs:     []string{"*"},
+				},
+			},
+		},
+		rbacv1.RoleBinding{
+			TypeMeta: metav1.TypeMeta{
+				Kind: "RoleBinding",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name + "-leaderelection",
+				Namespace: namespace,
+			},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "Role",
+				Name:     name + "-leaderelection",
+			},
+			Subjects: []rbacv1.Subject{
+				{
+					Kind:      "ServiceAccount",
+					Name:      name,
+					Namespace: namespace,
+				},
+			},
+		},
 		apiv1.Namespace{ // only needed for the configmap
 			TypeMeta: metav1.TypeMeta{
 				Kind: "Namespace",
