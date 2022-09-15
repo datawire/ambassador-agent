@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 
 	// load all auth plugins
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -147,6 +146,8 @@ func NewAgent(
 	directiveHandler DirectiveHandler,
 	rolloutsGetterFactory rolloutsGetterFactory,
 	secretsGetterFactory secretsGetterFactory,
+	clientset *kubernetes.Clientset,
+	agentNamespace string,
 ) *Agent {
 	reportPeriodFromEnv := os.Getenv("AGENT_REPORTING_PERIOD")
 	var reportPeriod time.Duration
@@ -179,17 +180,6 @@ func NewAgent(
 		)
 	}
 
-	// creates the in-cluster config
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		panic(err.Error())
-	}
-	// creates the clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-
 	/*
 		rolloutGvr, _ := schema.ParseResourceArg("rollouts.v1alpha1.argoproj.io")
 		rolloutCallback := dc.WatchGeneric(ctx, ns, rolloutGvr)
@@ -197,8 +187,6 @@ func NewAgent(
 		applicationGvr, _ := schema.ParseResourceArg("applications.v1alpha1.argoproj.io")
 		applicationCallback := dc.WatchGeneric(ctx, ns, applicationGvr)
 	*/
-
-	agentNamespace := getEnvWithDefault("AGENT_NAMESPACE", "ambassador")
 
 	return &Agent{
 		minReportPeriod:  reportPeriod,
@@ -373,7 +361,7 @@ func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) e
 	a.watchers.EnsureStarted(ctx)
 	// TODO wait for core sync
 
-	// The following is kates that im not sure we can replicate with k8sapi as currently exists
+	// The following is kates that im not sure we can replicate with k8sapi as it currently exists
 	// leaving it in for now
 	client, err := kates.NewClient(kates.ClientConfig{})
 	if err != nil {
