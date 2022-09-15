@@ -72,13 +72,21 @@ func agentResources(namespace, name string) []any {
 				},
 			},
 		},
+		apiv1.Namespace{
+			TypeMeta: metav1.TypeMeta{
+				Kind: "Namespace",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "ambassador",
+			},
+		},
 		rbacv1.Role{
 			TypeMeta: metav1.TypeMeta{
 				Kind: "Role",
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name + "-leaderelection",
-				Namespace: namespace,
+				Namespace: "ambassador",
 			},
 			Rules: []rbacv1.PolicyRule{
 				{
@@ -94,7 +102,7 @@ func agentResources(namespace, name string) []any {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name + "-leaderelection",
-				Namespace: namespace,
+				Namespace: "ambassador",
 			},
 			RoleRef: rbacv1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
@@ -107,14 +115,6 @@ func agentResources(namespace, name string) []any {
 					Name:      name,
 					Namespace: namespace,
 				},
-			},
-		},
-		apiv1.Namespace{ // only needed for the configmap
-			TypeMeta: metav1.TypeMeta{
-				Kind: "Namespace",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "ambassador",
 			},
 		},
 		apiv1.ConfigMap{
