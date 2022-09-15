@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/datawire/dlib/dlog"
-	"github.com/datawire/dtest"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/client-go/kubernetes"
@@ -43,13 +42,15 @@ func (s *BasicTestSuite) SetupSuite() {
 	s.name = "ambassador-agent"
 	s.ctx = dlog.NewTestContext(s.T(), false)
 
-	config, err := clientcmd.BuildConfigFromFlags("", os.Getenv("KUBECONFIG"))
+	kubeconfigPath := os.Getenv("KUBECONFIG")
+	s.Require().NotEmpty(kubeconfigPath)
+
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	s.Require().NoError(err)
 	s.clientset, err = kubernetes.NewForConfig(config)
 	s.Require().NoError(err)
 
-	kubeconfig := dtest.KubeVersionConfig(s.ctx, dtest.Kube22)
-	s.cli, err = kates.NewClient(kates.ClientConfig{Kubeconfig: kubeconfig})
+	s.cli, err = kates.NewClient(kates.ClientConfig{Kubeconfig: kubeconfigPath})
 	s.NoError(err)
 
 	s.NotEmpty(os.Getenv(agentImageEnvVar),
