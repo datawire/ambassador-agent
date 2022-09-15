@@ -489,10 +489,12 @@ func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context) {
 			if a.clusterId == "" {
 				a.clusterId = GetClusterID(ctx, a.clientset) // get cluster id for ambMeta
 			}
+			a.emissaryPresent = true
 			a.SetReportDiagnosticsAllowed(false) // disable amb daig reporting
 			return
 		}
 	}
+	a.emissaryPresent = false
 	a.SetReportDiagnosticsAllowed(true) // disable amb daig reporting
 }
 

@@ -97,7 +97,6 @@ require (
 	k8s.io/api v0.25.0
 	k8s.io/apimachinery v0.25.0
 	k8s.io/client-go v0.25.0
-	k8s.io/klog/v2 v2.70.1
 )
 
 require (
@@ -169,7 +168,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/russross/blackfriday v1.6.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
-	github.com/spf13/cobra v1.3.0 // indirect
+	github.com/spf13/cobra v1.4.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
 	go.starlark.net v0.0.0-20220203230714-bb14e151c28f // indirect
@@ -189,6 +188,7 @@ require (
 	k8s.io/apiserver v0.23.1 // indirect
 	k8s.io/cli-runtime v0.25.0 // indirect
 	k8s.io/component-base v0.25.0 // indirect
+	k8s.io/klog/v2 v2.70.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1 // indirect
 	k8s.io/kubectl v0.25.0 // indirect
 	k8s.io/kubernetes v1.23.1 // indirect

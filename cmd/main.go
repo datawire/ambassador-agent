@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -17,12 +16,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
-	"k8s.io/klog/v2"
 
 	"github.com/datawire/dlib/dgroup"
 	"github.com/datawire/dlib/dlog"
-	"github.com/emissary-ingress/emissary/v3/pkg/busy"
-	"github.com/emissary-ingress/emissary/v3/pkg/logutil"
 )
 
 // internal k8s service
@@ -47,37 +43,11 @@ func main() {
 	}
 	// creates the clientset
 	clientset := kubernetes.NewForConfigOrDie(config)
-
 	agentNamespace := getEnvWithDefault("AGENT_NAMESPACE", "ambassador")
-
 	ambAgent := agent.NewAgent(nil, agent.NewArgoRolloutsGetter, agent.NewSecretsGetter, clientset, agentNamespace)
 
-	// all log things need to happen here because we still allow the agent to run in amb-sidecar
-	// and amb-sidecar should control all the logging if it's kicking off the agent.
-	// this codepath is only hit when the agent is running on its own
-	logLevel := os.Getenv("AES_LOG_LEVEL")
-	// by default, suppress everything except fatal things
-	// the watcher in the agent will spit out a lot of errors because we don't give it rbac to
-	// list secrets initially.
-	klogLevel := 3
-	if logLevel != "" {
-		logrusLevel, err := logutil.ParseLogLevel(logLevel)
-		if err != nil {
-			dlog.Errorf(ctx, "error parsing log level, running with default level: %+v", err)
-		} else {
-			busy.SetLogLevel(logrusLevel)
-		}
-		klogLevel = logutil.LogrusToKLogLevel(logrusLevel)
-	}
-	klogFlags := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-	klog.InitFlags(klogFlags)
-	if err := klogFlags.Parse([]string{fmt.Sprintf("-stderrthreshold=%d", klogLevel), "-v=2", "-logtostderr=false"}); err != nil {
-		dlog.Error(ctx, err.Error())
-		os.Exit(1)
-	}
 	snapshotURL := getEnvWithDefault("AES_SNAPSHOT_URL", fmt.Sprintf(DefaultSnapshotURLFmt, ExternalSnapshotPort))
 	diagnosticsURL := getEnvWithDefault("AES_DIAGNOSTICS_URL", fmt.Sprintf(DefaultDiagnosticsURLFmt, AdminDiagnosticsPort))
-
 	reportDiagnostics := os.Getenv("AES_REPORT_DIAGNOSTICS_TO_CLOUD")
 	if reportDiagnostics == "true" {
 		ambAgent.SetReportDiagnosticsAllowed(true)
