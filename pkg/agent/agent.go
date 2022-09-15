@@ -455,6 +455,9 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 					dlog.Warnf(ctx, "Error getting snapshot from ambassador %+v", err)
 				}
 			} else {
+				if a.clusterId == "" {
+					a.clusterId = GetClusterID(ctx, a.clientset) // get cluster id for ambMeta
+				}
 				snapshot = &snapshotTypes.Snapshot{
 					AmbassadorMeta: &snapshotTypes.AmbassadorMetaInfo{
 						ClusterID: a.clusterId,
@@ -486,9 +489,6 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context) {
 	for _, endpoint := range a.ambassadorWatcher.endpointWatcher.List(ctx) {
 		if endpoint.Name == "ambassador-admin" {
-			if a.clusterId == "" {
-				a.clusterId = GetClusterID(ctx, a.clientset) // get cluster id for ambMeta
-			}
 			a.emissaryPresent = true
 			a.SetReportDiagnosticsAllowed(false) // disable amb daig reporting
 			return
