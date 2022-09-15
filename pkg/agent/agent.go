@@ -140,6 +140,7 @@ type Agent struct {
 	configWatchers    *ConfigWatchers
 	watchers          *Watchers
 	ambassadorWatcher *AmbassadorWatcher
+	siWatcher         *SIWatcher
 }
 
 // New returns a new Agent.
@@ -203,6 +204,7 @@ func NewAgent(
 		watchers:          NewWatchers(clientset),
 		configWatchers:    NewConfigWatchers(clientset, agentNamespace),
 		ambassadorWatcher: NewAmbassadorWatcher(clientset, agentNamespace),
+		siWatcher:         NewSIWatcher(clientset),
 		// TODO add other watchers
 	}
 }
@@ -352,8 +354,9 @@ func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) e
 	// TODO wait for config sync
 	a.waitForAPIKey(ctx)
 	a.watchers.EnsureStarted(ctx)
-	// TODO wait for core sync
+	// TODO wait for amb sync
 	a.ambassadorWatcher.EnsureStarted(ctx)
+	a.handleAPIKeyConfigChange(ctx)
 
 	// The following is kates that im not sure we can replicate with k8sapi as it currently exists
 	// leaving it in for now
@@ -492,10 +495,12 @@ func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context) {
 		if endpoint.Name == "ambassador-admin" {
 			a.emissaryPresent = true
 			a.SetReportDiagnosticsAllowed(false) // disable amb daig reporting
+			a.siWatcher.Cancel()
 			return
 		}
 	}
 	a.emissaryPresent = false
+	a.siWatcher.EnsureStarted(ctx)
 	a.SetReportDiagnosticsAllowed(true) // disable amb daig reporting
 }
 
@@ -673,6 +678,9 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 		dlog.Debugf(ctx, "Found %d Deployments", len(snapshot.Kubernetes.Deployments))
 		snapshot.Kubernetes.Endpoints = a.watchers.endpointWatcher.List(ctx)
 		dlog.Debugf(ctx, "Found %d Endpoints", len(snapshot.Kubernetes.Endpoints))
+		if !a.emissaryPresent {
+			snapshot.Kubernetes.Services = a.siWatcher.serviceWatcher.List(ctx)
+		}
 		if a.rolloutStore != nil {
 			snapshot.Kubernetes.ArgoRollouts = a.rolloutStore.StateOfWorld()
 			dlog.Debugf(ctx, "Found %d argo rollouts", len(snapshot.Kubernetes.ArgoRollouts))
