@@ -11,6 +11,7 @@ import (
 
 	"github.com/datawire/ambassador-agent/pkg/agent"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -33,7 +34,14 @@ const (
 )
 
 func main() {
+	logger := logrus.New()
+
+	// Start with InfoLevel so that the config is read using that level
+	logger.SetLevel(logrus.TraceLevel)
+
 	ctx := context.Background()
+
+	ctx = dlog.WithLogger(ctx, dlog.WrapLogrus(logger))
 
 	// creates the in-cluster config
 	config, err := rest.InClusterConfig()
