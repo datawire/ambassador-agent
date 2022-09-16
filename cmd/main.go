@@ -11,6 +11,7 @@ import (
 
 	"github.com/datawire/ambassador-agent/pkg/agent"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -33,7 +34,14 @@ const (
 )
 
 func main() {
+	logger := logrus.New()
+
+	// Start with InfoLevel so that the config is read using that level
+	logger.SetLevel(logrus.TraceLevel)
+
 	ctx := context.Background()
+
+	ctx = dlog.WithLogger(ctx, dlog.WrapLogrus(logger))
 
 	// creates the in-cluster config
 	config, err := rest.InClusterConfig()
@@ -85,6 +93,7 @@ func main() {
 
 	// each call to the leaselock should have a unique id
 	id := uuid.New().String()
+	dlog.Infof(ctx, "Will lease with id %s", id)
 
 	// we use the Lease lock type since edits to Leases are less common
 	// and fewer objects in the cluster watch "all Leases".
@@ -105,10 +114,18 @@ func main() {
 		watchCancel context.CancelFunc
 		i           int
 	)
-	run := func() {
+	run := func(ctx context.Context) {
 		i += 1
-		grp.Go(fmt.Sprintf("watch-%v", i), func(ctx context.Context) error {
+		grp.Go(fmt.Sprintf("watch-%v", i), func(grpCtx context.Context) error {
 			watchCtx, watchCancel = context.WithCancel(ctx)
+			defer watchCancel()
+			go func() {
+				select {
+				case <-watchCtx.Done():
+				case <-grpCtx.Done():
+					watchCancel()
+				}
+			}()
 			return ambAgent.Watch(watchCtx, snapshotURL, diagnosticsURL)
 		})
 	}
@@ -130,7 +147,7 @@ func main() {
 			OnStartedLeading: func(ctx context.Context) {
 				// we're notified when we start - this is where you would
 				// usually put your code
-				run()
+				run(ctx)
 			},
 			OnStoppedLeading: func() {
 				// we can do cleanup here
