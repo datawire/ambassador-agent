@@ -5,7 +5,10 @@ RUN apk update && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
 WORKDIR /build
 COPY . .    
-RUN make build
+RUN \
+    --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    make build
 
 FROM alpine:3.15
 COPY --from=build-stage /build/ambassador-agent /usr/local/bin
