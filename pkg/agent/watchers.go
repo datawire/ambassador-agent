@@ -101,7 +101,7 @@ type SIWatcher struct {
 
 func NewSIWatcher(clientset *kubernetes.Clientset) *SIWatcher {
 	coreClient := clientset.CoreV1().RESTClient()
-	betaClient := clientset.ExtensionsV1beta1().RESTClient()
+	netClient := clientset.NetworkingV1().RESTClient()
 
 	cond := &sync.Cond{
 		L: &sync.Mutex{},
@@ -114,7 +114,7 @@ func NewSIWatcher(clientset *kubernetes.Clientset) *SIWatcher {
 	return &SIWatcher{
 		cond:           cond,
 		serviceWatcher: k8sapi.NewWatcher("service", watchedNs, coreClient, &kates.Service{}, cond, nil),
-		ingressWatcher: k8sapi.NewWatcher("ingresses", watchedNs, betaClient, &snapshot.Ingress{}, cond, nil),
+		ingressWatcher: k8sapi.NewWatcher("ingresses", watchedNs, netClient, &snapshot.Ingress{}, cond, nil),
 	}
 }
 
