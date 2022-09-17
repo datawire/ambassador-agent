@@ -6,6 +6,7 @@ import (
 
 	"github.com/datawire/k8sapi/pkg/k8sapi"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
+	"github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -95,10 +96,12 @@ func (w *AmbassadorWatcher) EnsureStarted(ctx context.Context) {
 type SIWatcher struct {
 	cond           *sync.Cond
 	serviceWatcher *k8sapi.Watcher[*kates.Service]
+	ingressWatcher *k8sapi.Watcher[*snapshot.Ingress]
 }
 
 func NewSIWatcher(clientset *kubernetes.Clientset) *SIWatcher {
 	coreClient := clientset.CoreV1().RESTClient()
+	netClient := clientset.NetworkingV1().RESTClient()
 
 	cond := &sync.Cond{
 		L: &sync.Mutex{},
@@ -111,13 +114,16 @@ func NewSIWatcher(clientset *kubernetes.Clientset) *SIWatcher {
 	return &SIWatcher{
 		cond:           cond,
 		serviceWatcher: k8sapi.NewWatcher("services", watchedNs, coreClient, &kates.Service{}, cond, nil),
+		ingressWatcher: k8sapi.NewWatcher("ingresses", watchedNs, netClient, &snapshot.Ingress{}, cond, nil),
 	}
 }
 
 func (w *SIWatcher) EnsureStarted(ctx context.Context) {
 	w.serviceWatcher.EnsureStarted(ctx, nil)
+	w.ingressWatcher.EnsureStarted(ctx, nil)
 }
 
 func (w *SIWatcher) Cancel() {
 	w.serviceWatcher.Cancel()
+	w.ingressWatcher.Cancel()
 }

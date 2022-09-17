@@ -682,6 +682,7 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 		dlog.Debugf(ctx, "Found %d Endpoints", len(snapshot.Kubernetes.Endpoints))
 		if !a.emissaryPresent {
 			snapshot.Kubernetes.Services = a.siWatcher.serviceWatcher.List(ctx)
+			snapshot.Kubernetes.Ingresses = a.siWatcher.ingressWatcher.List(ctx)
 		}
 		if a.rolloutStore != nil {
 			snapshot.Kubernetes.ArgoRollouts = a.rolloutStore.StateOfWorld()
