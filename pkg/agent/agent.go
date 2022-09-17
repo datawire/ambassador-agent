@@ -109,6 +109,7 @@ type Agent struct {
 
 	// Field selector for the k8s resources that the agent watches
 	agentWatchFieldSelector string
+	namespacesToWatch       []string
 
 	// A mutex related to the metrics endpoint action, to avoid concurrent (and useless) pushes.
 	metricsRelayMutex sync.Mutex
@@ -138,7 +139,7 @@ type Agent struct {
 	// k8sapi watchers
 	clientset         *kubernetes.Clientset
 	configWatchers    *ConfigWatchers
-	watchers          *Watchers
+	coreWatchers      *CoreWatchers
 	ambassadorWatcher *AmbassadorWatcher
 	siWatcher         *SIWatcher
 }
@@ -182,6 +183,8 @@ func NewAgent(
 		)
 	}
 
+	namespacesToWatch := strings.Split(os.Getenv("NAMESPACES_TO_WATCH"), " ")
+
 	return &Agent{
 		minReportPeriod:  reportPeriod,
 		reportComplete:   make(chan error),
@@ -199,12 +202,14 @@ func NewAgent(
 		metricsBackoffUntil:          time.Now().Add(defaultMinReportPeriod),
 		rpcExtraHeaders:              rpcExtraHeaders,
 		aggregatedMetrics:            map[string][]*io_prometheus_client.MetricFamily{},
+		namespacesToWatch:            namespacesToWatch,
+
 		// k8sapi watchers
 		clientset:         clientset,
-		watchers:          NewWatchers(clientset),
+		coreWatchers:      NewCoreWatchers(clientset, namespacesToWatch),
 		configWatchers:    NewConfigWatchers(clientset, agentNamespace),
 		ambassadorWatcher: NewAmbassadorWatcher(clientset, agentNamespace),
-		siWatcher:         NewSIWatcher(clientset),
+		siWatcher:         NewSIWatcher(clientset, namespacesToWatch),
 		// TODO add other watchers
 	}
 }
@@ -353,7 +358,7 @@ func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) e
 	a.configWatchers.EnsureStarted(ctx)
 	// TODO wait for config sync
 	a.waitForAPIKey(ctx)
-	a.watchers.EnsureStarted(ctx)
+	a.coreWatchers.EnsureStarted(ctx)
 	// TODO wait for amb sync
 	a.ambassadorWatcher.EnsureStarted(ctx)
 	a.handleAPIKeyConfigChange(ctx)
@@ -475,19 +480,17 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 		}
 		a.MaybeReportSnapshot(ctx)
 
-		if !a.diagnosticsReportingStopped && !a.diagnosticsReportRunning.Value() && a.reportDiagnosticsAllowed {
-			if a.emissaryPresent {
-				diagnostics, err := getAmbDiagnosticsInfo(diagnosticsURL)
-				if err != nil {
-					dlog.Warnf(ctx, "Error getting diagnostics from ambassador %+v", err)
-				}
-				dlog.Debug(ctx, "Received diagnostics in agent")
-				agentDiagnostics, err := a.ProcessDiagnostics(ctx, diagnostics, ambHost)
-				if err != nil {
-					dlog.Warnf(ctx, "error processing diagnostics: %+v", err)
-				}
-				a.ReportDiagnostics(ctx, agentDiagnostics)
+		if !a.diagnosticsReportingStopped && !a.diagnosticsReportRunning.Value() && a.reportDiagnosticsAllowed && a.emissaryPresent {
+			diagnostics, err := getAmbDiagnosticsInfo(diagnosticsURL)
+			if err != nil {
+				dlog.Warnf(ctx, "Error getting diagnostics from ambassador %+v", err)
 			}
+			dlog.Debug(ctx, "Received diagnostics in agent")
+			agentDiagnostics, err := a.ProcessDiagnostics(ctx, diagnostics, ambHost)
+			if err != nil {
+				dlog.Warnf(ctx, "error processing diagnostics: %+v", err)
+			}
+			a.ReportDiagnostics(ctx, agentDiagnostics)
 		}
 	}
 }
@@ -496,14 +499,12 @@ func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context) {
 	for _, endpoint := range a.ambassadorWatcher.endpointWatcher.List(ctx) {
 		if endpoint.Name == "ambassador-admin" {
 			a.emissaryPresent = true
-			a.SetReportDiagnosticsAllowed(false) // disable amb daig reporting
 			a.siWatcher.Cancel()
 			return
 		}
 	}
 	a.emissaryPresent = false
 	a.siWatcher.EnsureStarted(ctx)
-	a.SetReportDiagnosticsAllowed(true) // disable amb daig reporting
 }
 
 func (a *Agent) MaybeReportSnapshot(ctx context.Context) {
@@ -672,17 +673,17 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 	}
 
 	if snapshot.Kubernetes != nil {
-		snapshot.Kubernetes.Pods = a.watchers.podWatcher.List(ctx)
+		snapshot.Kubernetes.Pods = a.coreWatchers.podWatchers.List(ctx)
 		dlog.Debugf(ctx, "Found %d pods", len(snapshot.Kubernetes.Pods))
-		snapshot.Kubernetes.ConfigMaps = a.watchers.mapsWatcher.List(ctx)
+		snapshot.Kubernetes.ConfigMaps = a.coreWatchers.mapsWatchers.List(ctx)
 		dlog.Debugf(ctx, "Found %d configMaps", len(snapshot.Kubernetes.ConfigMaps))
-		snapshot.Kubernetes.Deployments = a.watchers.deployWatcher.List(ctx)
+		snapshot.Kubernetes.Deployments = a.coreWatchers.deployWatchers.List(ctx)
 		dlog.Debugf(ctx, "Found %d Deployments", len(snapshot.Kubernetes.Deployments))
-		snapshot.Kubernetes.Endpoints = a.watchers.endpointWatcher.List(ctx)
+		snapshot.Kubernetes.Endpoints = a.coreWatchers.endpointWatchers.List(ctx)
 		dlog.Debugf(ctx, "Found %d Endpoints", len(snapshot.Kubernetes.Endpoints))
 		if !a.emissaryPresent {
-			snapshot.Kubernetes.Services = a.siWatcher.serviceWatcher.List(ctx)
-			snapshot.Kubernetes.Ingresses = a.siWatcher.ingressWatcher.List(ctx)
+			snapshot.Kubernetes.Services = a.siWatcher.serviceWatchers.List(ctx)
+			snapshot.Kubernetes.Ingresses = a.siWatcher.ingressWatchers.List(ctx)
 		}
 		if a.rolloutStore != nil {
 			snapshot.Kubernetes.ArgoRollouts = a.rolloutStore.StateOfWorld()
