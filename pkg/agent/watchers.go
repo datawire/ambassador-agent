@@ -113,7 +113,7 @@ func NewSIWatcher(clientset *kubernetes.Clientset) *SIWatcher {
 	// TODO equals func
 	return &SIWatcher{
 		cond:           cond,
-		serviceWatcher: k8sapi.NewWatcher("service", watchedNs, coreClient, &kates.Service{}, cond, nil),
+		serviceWatcher: k8sapi.NewWatcher("services", watchedNs, coreClient, &kates.Service{}, cond, nil),
 		ingressWatcher: k8sapi.NewWatcher("ingresses", watchedNs, netClient, &snapshot.Ingress{}, cond, nil),
 	}
 }

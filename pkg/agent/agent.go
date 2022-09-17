@@ -476,16 +476,18 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 		a.MaybeReportSnapshot(ctx)
 
 		if !a.diagnosticsReportingStopped && !a.diagnosticsReportRunning.Value() && a.reportDiagnosticsAllowed {
-			diagnostics, err := getAmbDiagnosticsInfo(diagnosticsURL)
-			if err != nil {
-				dlog.Warnf(ctx, "Error getting diagnostics from ambassador %+v", err)
+			if a.emissaryPresent {
+				diagnostics, err := getAmbDiagnosticsInfo(diagnosticsURL)
+				if err != nil {
+					dlog.Warnf(ctx, "Error getting diagnostics from ambassador %+v", err)
+				}
+				dlog.Debug(ctx, "Received diagnostics in agent")
+				agentDiagnostics, err := a.ProcessDiagnostics(ctx, diagnostics, ambHost)
+				if err != nil {
+					dlog.Warnf(ctx, "error processing diagnostics: %+v", err)
+				}
+				a.ReportDiagnostics(ctx, agentDiagnostics)
 			}
-			dlog.Debug(ctx, "Received diagnostics in agent")
-			agentDiagnostics, err := a.ProcessDiagnostics(ctx, diagnostics, ambHost)
-			if err != nil {
-				dlog.Warnf(ctx, "error processing diagnostics: %+v", err)
-			}
-			a.ReportDiagnostics(ctx, agentDiagnostics)
 		}
 	}
 }

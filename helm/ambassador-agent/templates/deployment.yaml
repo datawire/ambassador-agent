@@ -41,7 +41,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: AGENT_CONFIG_RESOURCE_NAME
-              value: {{ include "ambassador-agent.fullname" . }}-agent-cloud-token
+              value: {{ include "ambassador-agent.fullname" . }}-cloud-token
             - name: RPC_CONNECTION_ADDRESS
               value: {{ .Values.rpcAddress }}
             {{- if .Values.edgestack }}
