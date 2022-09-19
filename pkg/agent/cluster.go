@@ -17,8 +17,6 @@ func GetClusterID(ctx context.Context, client *kubernetes.Clientset) (clusterID 
 		return clusterID
 	}
 
-	rootID := "00000000-0000-0000-0000-000000000000"
-
 	nsName := "default"
 	/*
 		// TODO scoped agent logic
@@ -31,11 +29,15 @@ func GetClusterID(ctx context.Context, client *kubernetes.Clientset) (clusterID 
 
 	ns, err := client.CoreV1().Namespaces().Get(ctx, nsName, v1.GetOptions{})
 	if err == nil {
-		rootID = string(ns.GetUID())
+		clusterID = string(ns.GetUID())
+	} else {
+		dlog.Errorf(ctx, "Unable to detect cluster ID: %v", err)
+		return ""
 	}
 
 	dlog.Infof(ctx, "Cluster ID is %s", clusterID)
-	return clusterIDFromRootID(rootID)
+	dlog.Debugf(ctx, "Namespace looks like %+v", ns)
+	return clusterIDFromRootID(clusterID)
 }
 
 func clusterIDFromRootID(rootID string) string {
