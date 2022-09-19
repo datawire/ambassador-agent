@@ -67,6 +67,7 @@ progressDeadline: 0
 
 cloudConnectToken: ""
 
+logLevel: "debug"
 docker:
   useImagePullSecret: false
   imagePullSecretName: ""
