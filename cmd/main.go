@@ -35,13 +35,17 @@ const (
 
 func main() {
 	logger := logrus.New()
-
-	// Start with InfoLevel so that the config is read using that level
-	logger.SetLevel(logrus.TraceLevel)
-
+	logger.SetLevel(logrus.InfoLevel)
 	ctx := context.Background()
-
 	ctx = dlog.WithLogger(ctx, dlog.WrapLogrus(logger))
+
+	logLevel := getEnvWithDefault("LOG_LEVEL", "info")
+	level, err := logrus.ParseLevel(logLevel)
+	if err != nil {
+		level = logrus.InfoLevel
+		dlog.Errorf(ctx, "failed to parse log level %q : %v", logLevel, err)
+	}
+	logger.SetLevel(level)
 
 	// creates the in-cluster config
 	config, err := rest.InClusterConfig()

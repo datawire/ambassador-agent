@@ -507,8 +507,9 @@ func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context) {
 }
 
 func (a *Agent) MaybeReportSnapshot(ctx context.Context) {
+	dlog.Debugf(ctx, "Trying to send snapshot")
 	if a.ambassadorAPIKey == "" {
-		dlog.Debugf(ctx, "CLOUD_CONNECT_TOKEN not set in the environment, not reporting snapshot")
+		dlog.Error(ctx, "CLOUD_CONNECT_TOKEN not set in the environment, not reporting snapshot")
 		return
 	}
 	if a.reportingStopped || a.reportRunning.Value() || (a.reportToSend == nil) {
@@ -700,10 +701,12 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 	}
 
 	if err = snapshot.Sanitize(); err != nil {
+		dlog.Errorf(ctx, "Error sanitizing snapshot: %v", err)
 		return err
 	}
 	rawJsonSnapshot, err := json.Marshal(snapshot)
 	if err != nil {
+		dlog.Errorf(ctx, "Error marshalling snapshot: %v", err)
 		return err
 	}
 
@@ -717,6 +720,7 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 
 	a.reportToSend = report
 
+	dlog.Debugf(ctx, "Will send a snapshot for %s", agentID)
 	return nil
 }
 
