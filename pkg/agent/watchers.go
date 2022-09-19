@@ -6,7 +6,7 @@ import (
 
 	"github.com/datawire/k8sapi/pkg/k8sapi"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
-	"github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -96,12 +96,14 @@ func (w *AmbassadorWatcher) EnsureStarted(ctx context.Context) {
 type SIWatcher struct {
 	cond           *sync.Cond
 	serviceWatcher *k8sapi.Watcher[*kates.Service]
-	ingressWatcher *k8sapi.Watcher[*snapshot.Ingress]
+	ingressWatcher *k8sapi.Watcher[*k8s_resource_types.Ingress]
 }
 
 func NewSIWatcher(clientset *kubernetes.Clientset) *SIWatcher {
 	coreClient := clientset.CoreV1().RESTClient()
-	netClient := clientset.NetworkingV1().RESTClient()
+	netClient := clientset.ExtensionsV1beta1().RESTClient()
+	// TODO: This causes a parsing panic
+	// netClient := clientset.NetworkingV1().RESTClient()
 
 	cond := &sync.Cond{
 		L: &sync.Mutex{},
@@ -114,7 +116,7 @@ func NewSIWatcher(clientset *kubernetes.Clientset) *SIWatcher {
 	return &SIWatcher{
 		cond:           cond,
 		serviceWatcher: k8sapi.NewWatcher("services", watchedNs, coreClient, &kates.Service{}, cond, nil),
-		ingressWatcher: k8sapi.NewWatcher("ingresses", watchedNs, netClient, &snapshot.Ingress{}, cond, nil),
+		ingressWatcher: k8sapi.NewWatcher("ingresses", watchedNs, netClient, &k8s_resource_types.Ingress{}, cond, nil),
 	}
 }
 
