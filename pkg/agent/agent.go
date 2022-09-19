@@ -308,28 +308,36 @@ func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
 	// can get it.
 	// there _should_ only be one secret here, but we're going to loop and check that the object
 	// meta matches what we expect
-	for _, secret := range a.configWatchers.secretWatcher.List(ctx) {
-		if secret.GetName() == a.agentCloudResourceConfigName && secret.GetNamespace() == a.agentNamespace {
-			connTokenBytes, ok := secret.Data[cloudConnectTokenKey]
-			connToken := string(connTokenBytes)
-			dlog.Infof(ctx, "Setting cloud connect token from secret")
-			a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
-			resetComm(a.ambassadorAPIKey, prevKey, a)
-			return
+	if secrets, err := a.configWatchers.secretWatcher.List(ctx); err == nil {
+		for _, secret := range secrets {
+			if secret.GetName() == a.agentCloudResourceConfigName && secret.GetNamespace() == a.agentNamespace {
+				connTokenBytes, ok := secret.Data[cloudConnectTokenKey]
+				connToken := string(connTokenBytes)
+				dlog.Infof(ctx, "Setting cloud connect token from secret")
+				a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
+				resetComm(a.ambassadorAPIKey, prevKey, a)
+				return
+			}
 		}
+	} else {
+		dlog.Warnf(ctx, "Unable to list secrets for cloud connect token: %v", err)
 	}
 	// then, if we don't have a secret, we check for a config map
 	// there _should_ only be one config here, but we're going to loop and check that the object
 	// meta matches what we expect
-	for _, cm := range a.configWatchers.mapsWatcher.List(ctx) {
-		if cm.GetName() == a.agentCloudResourceConfigName && cm.GetNamespace() == a.agentNamespace {
-			connTokenBytes, ok := cm.Data[cloudConnectTokenKey]
-			connToken := string(connTokenBytes)
-			dlog.Infof(ctx, "Setting cloud connect token from configmap")
-			a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
-			resetComm(a.ambassadorAPIKey, prevKey, a)
-			return
+	if cms, err := a.configWatchers.mapsWatcher.List(ctx); err == nil {
+		for _, cm := range cms {
+			if cm.GetName() == a.agentCloudResourceConfigName && cm.GetNamespace() == a.agentNamespace {
+				connTokenBytes, ok := cm.Data[cloudConnectTokenKey]
+				connToken := string(connTokenBytes)
+				dlog.Infof(ctx, "Setting cloud connect token from configmap")
+				a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
+				resetComm(a.ambassadorAPIKey, prevKey, a)
+				return
+			}
 		}
+	} else {
+		dlog.Warnf(ctx, "Unable to list configmaps for cloud connect token: %v", err)
 	}
 
 	// so if we got here, we know something changed, but a config map
@@ -341,6 +349,9 @@ func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
 	a.ambassadorAPIKeyMutex.Lock()
 	defer a.ambassadorAPIKeyMutex.Unlock()
 	a.ambassadorAPIKey = a.ambassadorAPIKeyEnvVarValue
+	if a.ambassadorAPIKeyEnvVarValue == "" {
+		dlog.Errorf(ctx, "Unable to get cloud connect token. This agent will do nothing.")
+	}
 	resetComm(a.ambassadorAPIKey, prevKey, a)
 }
 
@@ -493,13 +504,17 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 }
 
 func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context) {
-	for _, endpoint := range a.ambassadorWatcher.endpointWatcher.List(ctx) {
-		if endpoint.Name == "ambassador-admin" {
-			a.emissaryPresent = true
-			a.SetReportDiagnosticsAllowed(false) // disable amb daig reporting
-			a.siWatcher.Cancel()
-			return
+	if endpoints, err := a.ambassadorWatcher.endpointWatcher.List(ctx); err == nil {
+		for _, endpoint := range endpoints {
+			if endpoint.Name == "ambassador-admin" {
+				a.emissaryPresent = true
+				a.SetReportDiagnosticsAllowed(false) // disable amb daig reporting
+				a.siWatcher.Cancel()
+				return
+			}
 		}
+	} else {
+		dlog.Warnf(ctx, "Unable to watch for ambassador-admin service, will act as though standalone: %v", err)
 	}
 	a.emissaryPresent = false
 	a.siWatcher.EnsureStarted(ctx)
@@ -673,21 +688,36 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 	}
 
 	if snapshot.Kubernetes != nil {
-		snapshot.Kubernetes.Pods = a.watchers.podWatcher.List(ctx)
+		if snapshot.Kubernetes.Pods, err = a.watchers.podWatcher.List(ctx); err != nil {
+			dlog.Errorf(ctx, "Unable to find pods: %v", err)
+		}
 		dlog.Debugf(ctx, "Found %d pods", len(snapshot.Kubernetes.Pods))
-		snapshot.Kubernetes.ConfigMaps = a.watchers.mapsWatcher.List(ctx)
+		if snapshot.Kubernetes.ConfigMaps, err = a.watchers.mapsWatcher.List(ctx); err != nil {
+			dlog.Errorf(ctx, "Unable to find configmaps: %v", err)
+		}
 		dlog.Debugf(ctx, "Found %d configMaps", len(snapshot.Kubernetes.ConfigMaps))
-		snapshot.Kubernetes.Deployments = a.watchers.deployWatcher.List(ctx)
+		if snapshot.Kubernetes.Deployments, err = a.watchers.deployWatcher.List(ctx); err != nil {
+			dlog.Errorf(ctx, "Unable to find deployments: %v", err)
+		}
 		dlog.Debugf(ctx, "Found %d Deployments", len(snapshot.Kubernetes.Deployments))
-		snapshot.Kubernetes.Endpoints = a.watchers.endpointWatcher.List(ctx)
+		if snapshot.Kubernetes.Endpoints, err = a.watchers.endpointWatcher.List(ctx); err != nil {
+			dlog.Errorf(ctx, "Unable to find endpoints: %v", err)
+		}
 		dlog.Debugf(ctx, "Found %d Endpoints", len(snapshot.Kubernetes.Endpoints))
 		if !a.emissaryPresent {
-			snapshot.Kubernetes.Services = a.siWatcher.serviceWatcher.List(ctx)
-			ingresses := a.siWatcher.ingressWatcher.List(ctx)
-			snapshot.Kubernetes.Ingresses = []*snapshotTypes.Ingress{}
-			for _, ing := range ingresses {
-				snapshot.Kubernetes.Ingresses = append(snapshot.Kubernetes.Ingresses, &snapshotTypes.Ingress{Ingress: *ing})
+			if snapshot.Kubernetes.Services, err = a.siWatcher.serviceWatcher.List(ctx); err != nil {
+				dlog.Errorf(ctx, "Unable to find services: %v", err)
 			}
+			dlog.Debugf(ctx, "Found %d services", len(snapshot.Kubernetes.Services))
+			if ingresses, err := a.siWatcher.ingressWatcher.List(ctx); err != nil {
+				dlog.Errorf(ctx, "Unable to find ingresses: %v", err)
+			} else {
+				snapshot.Kubernetes.Ingresses = []*snapshotTypes.Ingress{}
+				for _, ing := range ingresses {
+					snapshot.Kubernetes.Ingresses = append(snapshot.Kubernetes.Ingresses, &snapshotTypes.Ingress{Ingress: *ing})
+				}
+			}
+			dlog.Debugf(ctx, "Found %d ingresses", len(snapshot.Kubernetes.Ingresses))
 		}
 		if a.rolloutStore != nil {
 			snapshot.Kubernetes.ArgoRollouts = a.rolloutStore.StateOfWorld()
