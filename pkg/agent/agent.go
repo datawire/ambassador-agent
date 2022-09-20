@@ -184,6 +184,9 @@ func NewAgent(
 	}
 
 	namespacesToWatch := strings.Split(os.Getenv("NAMESPACES_TO_WATCH"), " ")
+	if len(namespacesToWatch) == 0 {
+		namespacesToWatch = append(namespacesToWatch, "")
+	}
 
 	return &Agent{
 		minReportPeriod:  reportPeriod,
