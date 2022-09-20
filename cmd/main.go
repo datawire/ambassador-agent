@@ -56,7 +56,7 @@ func main() {
 	// creates the clientset
 	clientset := kubernetes.NewForConfigOrDie(config)
 	agentNamespace := getEnvWithDefault("AGENT_NAMESPACE", "ambassador")
-	ambAgent := agent.NewAgent(nil, agent.NewArgoRolloutsGetter, agent.NewSecretsGetter, clientset, agentNamespace)
+	ambAgent := agent.NewAgent(ctx, nil, agent.NewArgoRolloutsGetter, agent.NewSecretsGetter, clientset, agentNamespace)
 
 	snapshotURL := getEnvWithDefault("AES_SNAPSHOT_URL", fmt.Sprintf(DefaultSnapshotURLFmt, ExternalSnapshotPort))
 	diagnosticsURL := getEnvWithDefault("AES_DIAGNOSTICS_URL", fmt.Sprintf(DefaultDiagnosticsURLFmt, AdminDiagnosticsPort))

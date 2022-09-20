@@ -84,7 +84,7 @@ replace (
 require (
 	github.com/argoproj/argo-rollouts v1.2.2
 	github.com/datawire/dlib v1.3.0
-	github.com/datawire/k8sapi v0.0.11-0.20220919194915-bdba833a1a3c
+	github.com/datawire/k8sapi v0.0.11
 	github.com/emissary-ingress/emissary/v3 v3.1.0
 	github.com/getkin/kin-openapi v0.97.0
 	github.com/google/uuid v1.3.0
@@ -97,6 +97,7 @@ require (
 	k8s.io/api v0.25.0
 	k8s.io/apimachinery v0.25.0
 	k8s.io/client-go v0.25.0
+	k8s.io/kubernetes v1.23.1
 )
 
 require (
@@ -192,7 +193,6 @@ require (
 	k8s.io/klog/v2 v2.70.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1 // indirect
 	k8s.io/kubectl v0.25.0 // indirect
-	k8s.io/kubernetes v1.23.1 // indirect
 	k8s.io/metrics v0.25.0 // indirect
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
 	sigs.k8s.io/controller-runtime v0.9.7 // indirect
