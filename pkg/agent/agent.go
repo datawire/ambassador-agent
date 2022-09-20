@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -253,7 +253,7 @@ func getAmbSnapshotInfo(url string) (*snapshotTypes.Snapshot, error) {
 			"Response failed with status code: %d", url, resp.StatusCode))
 	}
 	defer resp.Body.Close()
-	rawSnapshot, err := ioutil.ReadAll(resp.Body)
+	rawSnapshot, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ func getAmbDiagnosticsInfo(url string) (*diagnosticsTypes.Diagnostics, error) {
 			"Response failed with status code: %d", url, resp.StatusCode))
 	}
 	defer resp.Body.Close()
-	rawDiagnosticsSnapshot, err := ioutil.ReadAll(resp.Body)
+	rawDiagnosticsSnapshot, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
