@@ -146,6 +146,7 @@ type Agent struct {
 
 // New returns a new Agent.
 func NewAgent(
+	ctx context.Context,
 	directiveHandler DirectiveHandler,
 	rolloutsGetterFactory rolloutsGetterFactory,
 	secretsGetterFactory secretsGetterFactory,
@@ -212,7 +213,7 @@ func NewAgent(
 		coreWatchers:      NewCoreWatchers(clientset, namespacesToWatch),
 		configWatchers:    NewConfigWatchers(clientset, agentNamespace),
 		ambassadorWatcher: NewAmbassadorWatcher(clientset, agentNamespace),
-		siWatcher:         NewSIWatcher(clientset, namespacesToWatch),
+		siWatcher:         NewSIWatcher(ctx, clientset, namespacesToWatch),
 		// TODO add other watchers
 	}
 }
@@ -722,7 +723,7 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 			} else {
 				snapshot.Kubernetes.Ingresses = []*snapshotTypes.Ingress{}
 				for _, ing := range ingresses {
-					snapshot.Kubernetes.Ingresses = append(snapshot.Kubernetes.Ingresses, ing)
+					snapshot.Kubernetes.Ingresses = append(snapshot.Kubernetes.Ingresses, &snapshotTypes.Ingress{Ingress: *ing})
 				}
 			}
 			dlog.Debugf(ctx, "Found %d ingresses", len(snapshot.Kubernetes.Ingresses))

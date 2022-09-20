@@ -114,7 +114,7 @@ metadata:
     app.kubernetes.io/name: {{ include "ambassador-agent.name" . }}
     {{- include "ambassador-agent.labels" . | nindent 4 }}
 rules:
-- apiGroups: ["networking.k8s.io"]
+- apiGroups: ["networking.k8s.io", "extensions"]
   resources: [ "ingresses" ]
   verbs: [ "get", "list", "watch" ]
 {{- end }}
