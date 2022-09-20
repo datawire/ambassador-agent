@@ -156,7 +156,8 @@ func NewAgent(
 	reportPeriodFromEnv := os.Getenv("AGENT_REPORTING_PERIOD")
 	var reportPeriod time.Duration
 	if reportPeriodFromEnv != "" {
-		reportPeriod, err := time.ParseDuration(reportPeriodFromEnv)
+		var err error
+		reportPeriod, err = time.ParseDuration(reportPeriodFromEnv)
 		if err != nil {
 			reportPeriod = defaultMinReportPeriod
 		} else {
