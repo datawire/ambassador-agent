@@ -467,7 +467,11 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 				}
 			} else {
 				if a.clusterId == "" {
-					a.clusterId = GetClusterID(ctx, a.clientset) // get cluster id for ambMeta
+					ns := "default"
+					if len(a.namespacesToWatch) > 0 && a.namespacesToWatch[0] != "" {
+						ns = a.agentNamespace
+					}
+					a.clusterId = GetClusterID(ctx, a.clientset, ns) // get cluster id for ambMeta
 				}
 				snapshot = &snapshotTypes.Snapshot{
 					AmbassadorMeta: &snapshotTypes.AmbassadorMetaInfo{
