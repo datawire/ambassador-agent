@@ -10,15 +10,15 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-type Watchers struct {
-	cond            *sync.Cond
-	mapsWatcher     *k8sapi.Watcher[*kates.ConfigMap]
-	deployWatcher   *k8sapi.Watcher[*kates.Deployment]
-	podWatcher      *k8sapi.Watcher[*kates.Pod]
-	endpointWatcher *k8sapi.Watcher[*kates.Endpoints]
+type CoreWatchers struct {
+	cond             *sync.Cond
+	mapsWatchers     k8sapi.WatcherGroup[*kates.ConfigMap]
+	deployWatchers   k8sapi.WatcherGroup[*kates.Deployment]
+	podWatchers      k8sapi.WatcherGroup[*kates.Pod]
+	endpointWatchers k8sapi.WatcherGroup[*kates.Endpoints]
 }
 
-func NewWatchers(clientset *kubernetes.Clientset) *Watchers {
+func NewCoreWatchers(clientset *kubernetes.Clientset, namespaces []string) *CoreWatchers {
 	appClient := clientset.AppsV1().RESTClient()
 	coreClient := clientset.CoreV1().RESTClient()
 
@@ -26,24 +26,30 @@ func NewWatchers(clientset *kubernetes.Clientset) *Watchers {
 		L: &sync.Mutex{},
 	}
 
-	// TODO scoped agent logic
-	watchedNs := "" // empty string watches all ns
-
-	// TODO equals func
-	return &Watchers{
-		mapsWatcher:     k8sapi.NewWatcher("configmaps", watchedNs, coreClient, &kates.ConfigMap{}, cond, nil),
-		deployWatcher:   k8sapi.NewWatcher("deployments", watchedNs, appClient, &kates.Deployment{}, cond, nil),
-		podWatcher:      k8sapi.NewWatcher("pods", watchedNs, coreClient, &kates.Pod{}, cond, nil),
-		endpointWatcher: k8sapi.NewWatcher("endpoints", watchedNs, coreClient, &kates.Endpoints{}, cond, nil),
-		cond:            cond,
+	coreWatchers := &CoreWatchers{
+		mapsWatchers:     k8sapi.NewWatcherGroup[*kates.ConfigMap](),
+		deployWatchers:   k8sapi.NewWatcherGroup[*kates.Deployment](),
+		podWatchers:      k8sapi.NewWatcherGroup[*kates.Pod](),
+		endpointWatchers: k8sapi.NewWatcherGroup[*kates.Endpoints](),
+		cond:             cond,
 	}
+
+	// TODO equals func to prevent over-broadcasting
+	for _, ns := range namespaces {
+		coreWatchers.mapsWatchers.AddWatcher(k8sapi.NewWatcher("configmaps", ns, coreClient, &kates.ConfigMap{}, cond, nil))
+		coreWatchers.deployWatchers.AddWatcher(k8sapi.NewWatcher("deployments", ns, appClient, &kates.Deployment{}, cond, nil))
+		coreWatchers.podWatchers.AddWatcher(k8sapi.NewWatcher("pods", ns, coreClient, &kates.Pod{}, cond, nil))
+		coreWatchers.endpointWatchers.AddWatcher(k8sapi.NewWatcher("endpoints", ns, coreClient, &kates.Endpoints{}, cond, nil))
+	}
+
+	return coreWatchers
 }
 
-func (w *Watchers) EnsureStarted(ctx context.Context) {
-	w.mapsWatcher.EnsureStarted(ctx, nil)
-	w.deployWatcher.EnsureStarted(ctx, nil)
-	w.podWatcher.EnsureStarted(ctx, nil)
-	w.endpointWatcher.EnsureStarted(ctx, nil)
+func (w *CoreWatchers) EnsureStarted(ctx context.Context) {
+	w.mapsWatchers.EnsureStarted(ctx, nil)
+	w.deployWatchers.EnsureStarted(ctx, nil)
+	w.podWatchers.EnsureStarted(ctx, nil)
+	w.endpointWatchers.EnsureStarted(ctx, nil)
 }
 
 type ConfigWatchers struct {
@@ -59,6 +65,7 @@ func NewConfigWatchers(clientset *kubernetes.Clientset, watchedNs string) *Confi
 		L: &sync.Mutex{},
 	}
 
+	// TODO equals func to prevent over-broadcasting
 	return &ConfigWatchers{
 		mapsWatcher:   k8sapi.NewWatcher("configmaps", watchedNs, coreClient, &kates.ConfigMap{}, cond, nil),
 		secretWatcher: k8sapi.NewWatcher("secrets", watchedNs, coreClient, &kates.Secret{}, cond, nil),
@@ -83,6 +90,7 @@ func NewAmbassadorWatcher(clientset *kubernetes.Clientset, ns string) *Ambassado
 		L: &sync.Mutex{},
 	}
 
+	// TODO equals func to prevent over-broadcasting
 	return &AmbassadorWatcher{
 		cond:            cond,
 		endpointWatcher: k8sapi.NewWatcher("endpoints", ns, coreClient, &kates.Endpoints{}, cond, nil),
@@ -94,12 +102,12 @@ func (w *AmbassadorWatcher) EnsureStarted(ctx context.Context) {
 }
 
 type SIWatcher struct {
-	cond           *sync.Cond
-	serviceWatcher *k8sapi.Watcher[*kates.Service]
-	ingressWatcher *k8sapi.Watcher[*snapshot.Ingress]
+	cond            *sync.Cond
+	serviceWatchers k8sapi.WatcherGroup[*kates.Service]
+	ingressWatchers k8sapi.WatcherGroup[*snapshot.Ingress]
 }
 
-func NewSIWatcher(clientset *kubernetes.Clientset) *SIWatcher {
+func NewSIWatcher(clientset *kubernetes.Clientset, namespaces []string) *SIWatcher {
 	coreClient := clientset.CoreV1().RESTClient()
 	netClient := clientset.NetworkingV1().RESTClient()
 
@@ -107,23 +115,27 @@ func NewSIWatcher(clientset *kubernetes.Clientset) *SIWatcher {
 		L: &sync.Mutex{},
 	}
 
-	// TODO scoped agent logic
-	watchedNs := "" // empty string watches all ns
-
-	// TODO equals func
-	return &SIWatcher{
-		cond:           cond,
-		serviceWatcher: k8sapi.NewWatcher("services", watchedNs, coreClient, &kates.Service{}, cond, nil),
-		ingressWatcher: k8sapi.NewWatcher("ingresses", watchedNs, netClient, &snapshot.Ingress{}, cond, nil),
+	// TODO equals func to prevent over-broadcasting
+	siWatcher := &SIWatcher{
+		serviceWatchers: k8sapi.NewWatcherGroup[*kates.Service](),
+		ingressWatchers: k8sapi.NewWatcherGroup[*snapshot.Ingress](),
+		cond:            cond,
 	}
+
+	for _, ns := range namespaces {
+		siWatcher.serviceWatchers.AddWatcher(k8sapi.NewWatcher("services", ns, coreClient, &kates.Service{}, cond, nil))
+		siWatcher.ingressWatchers.AddWatcher(k8sapi.NewWatcher("ingresses", ns, netClient, &snapshot.Ingress{}, cond, nil))
+	}
+
+	return siWatcher
 }
 
 func (w *SIWatcher) EnsureStarted(ctx context.Context) {
-	w.serviceWatcher.EnsureStarted(ctx, nil)
-	w.ingressWatcher.EnsureStarted(ctx, nil)
+	w.serviceWatchers.EnsureStarted(ctx, nil)
+	w.ingressWatchers.EnsureStarted(ctx, nil)
 }
 
 func (w *SIWatcher) Cancel() {
-	w.serviceWatcher.Cancel()
-	w.ingressWatcher.Cancel()
+	w.serviceWatchers.Cancel()
+	w.ingressWatchers.Cancel()
 }

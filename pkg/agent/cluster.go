@@ -11,19 +11,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func GetClusterID(ctx context.Context, client *kubernetes.Clientset) (clusterID string) {
+func GetClusterID(ctx context.Context, client *kubernetes.Clientset, nsName string) (clusterID string) {
 	clusterID = getEnvWithDefault("AMBASSADOR_CLUSTER_ID", getEnvWithDefault("AMBASSADOR_SCOUT_ID", ""))
 	if clusterID != "" {
 		return clusterID
 	}
-
-	nsName := "default"
-	/*
-		// TODO scoped agent logic
-		if IsAmbassadorSingleNamespace() {
-			nsName = GetAmbassadorNamespace()
-		}
-	*/
 
 	dlog.Infof(ctx, "Fetching cluster ID from %s namespace", nsName)
 
