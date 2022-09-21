@@ -161,7 +161,7 @@ func (n *networkWatcher) convertStatus(ing *networking.Ingress) extv1beta1.Ingre
 func (n *networkWatcher) convertIngressBackend(backend *networking.IngressBackend) *extv1beta1.IngressBackend {
 	var servicePort intstr.IntOrString
 	pt := backend.Service.Port
-	if pt.Name == "" {
+	if pt.Name != "" {
 		servicePort = intstr.FromString(pt.Name)
 	} else {
 		servicePort = intstr.FromInt(int(pt.Number))
