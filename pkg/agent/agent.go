@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -146,6 +146,7 @@ type Agent struct {
 
 // New returns a new Agent.
 func NewAgent(
+	ctx context.Context,
 	directiveHandler DirectiveHandler,
 	rolloutsGetterFactory rolloutsGetterFactory,
 	secretsGetterFactory secretsGetterFactory,
@@ -155,7 +156,8 @@ func NewAgent(
 	reportPeriodFromEnv := os.Getenv("AGENT_REPORTING_PERIOD")
 	var reportPeriod time.Duration
 	if reportPeriodFromEnv != "" {
-		reportPeriod, err := time.ParseDuration(reportPeriodFromEnv)
+		var err error
+		reportPeriod, err = time.ParseDuration(reportPeriodFromEnv)
 		if err != nil {
 			reportPeriod = defaultMinReportPeriod
 		} else {
@@ -212,7 +214,7 @@ func NewAgent(
 		coreWatchers:      NewCoreWatchers(clientset, namespacesToWatch),
 		configWatchers:    NewConfigWatchers(clientset, agentNamespace),
 		ambassadorWatcher: NewAmbassadorWatcher(clientset, agentNamespace),
-		siWatcher:         NewSIWatcher(clientset, namespacesToWatch),
+		siWatcher:         NewSIWatcher(ctx, clientset, namespacesToWatch),
 		// TODO add other watchers
 	}
 }
@@ -252,7 +254,7 @@ func getAmbSnapshotInfo(url string) (*snapshotTypes.Snapshot, error) {
 			"Response failed with status code: %d", url, resp.StatusCode))
 	}
 	defer resp.Body.Close()
-	rawSnapshot, err := ioutil.ReadAll(resp.Body)
+	rawSnapshot, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +274,7 @@ func getAmbDiagnosticsInfo(url string) (*diagnosticsTypes.Diagnostics, error) {
 			"Response failed with status code: %d", url, resp.StatusCode))
 	}
 	defer resp.Body.Close()
-	rawDiagnosticsSnapshot, err := ioutil.ReadAll(resp.Body)
+	rawDiagnosticsSnapshot, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -316,28 +318,36 @@ func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
 	// can get it.
 	// there _should_ only be one secret here, but we're going to loop and check that the object
 	// meta matches what we expect
-	for _, secret := range a.configWatchers.secretWatcher.List(ctx) {
-		if secret.GetName() == a.agentCloudResourceConfigName && secret.GetNamespace() == a.agentNamespace {
-			connTokenBytes, ok := secret.Data[cloudConnectTokenKey]
-			connToken := string(connTokenBytes)
-			dlog.Infof(ctx, "Setting cloud connect token from secret")
-			a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
-			resetComm(a.ambassadorAPIKey, prevKey, a)
-			return
+	if secrets, err := a.configWatchers.secretWatcher.List(ctx); err == nil {
+		for _, secret := range secrets {
+			if secret.GetName() == a.agentCloudResourceConfigName && secret.GetNamespace() == a.agentNamespace {
+				connTokenBytes, ok := secret.Data[cloudConnectTokenKey]
+				connToken := string(connTokenBytes)
+				dlog.Infof(ctx, "Setting cloud connect token from secret")
+				a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
+				resetComm(a.ambassadorAPIKey, prevKey, a)
+				return
+			}
 		}
+	} else {
+		dlog.Warnf(ctx, "Unable to list secrets for cloud connect token: %v", err)
 	}
 	// then, if we don't have a secret, we check for a config map
 	// there _should_ only be one config here, but we're going to loop and check that the object
 	// meta matches what we expect
-	for _, cm := range a.configWatchers.mapsWatcher.List(ctx) {
-		if cm.GetName() == a.agentCloudResourceConfigName && cm.GetNamespace() == a.agentNamespace {
-			connTokenBytes, ok := cm.Data[cloudConnectTokenKey]
-			connToken := string(connTokenBytes)
-			dlog.Infof(ctx, "Setting cloud connect token from configmap")
-			a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
-			resetComm(a.ambassadorAPIKey, prevKey, a)
-			return
+	if cms, err := a.configWatchers.mapsWatcher.List(ctx); err == nil {
+		for _, cm := range cms {
+			if cm.GetName() == a.agentCloudResourceConfigName && cm.GetNamespace() == a.agentNamespace {
+				connTokenBytes, ok := cm.Data[cloudConnectTokenKey]
+				connToken := string(connTokenBytes)
+				dlog.Infof(ctx, "Setting cloud connect token from configmap")
+				a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
+				resetComm(a.ambassadorAPIKey, prevKey, a)
+				return
+			}
 		}
+	} else {
+		dlog.Warnf(ctx, "Unable to list configmaps for cloud connect token: %v", err)
 	}
 
 	// so if we got here, we know something changed, but a config map
@@ -349,6 +359,9 @@ func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
 	a.ambassadorAPIKeyMutex.Lock()
 	defer a.ambassadorAPIKeyMutex.Unlock()
 	a.ambassadorAPIKey = a.ambassadorAPIKeyEnvVarValue
+	if a.ambassadorAPIKeyEnvVarValue == "" {
+		dlog.Errorf(ctx, "Unable to get cloud connect token. This agent will do nothing.")
+	}
 	resetComm(a.ambassadorAPIKey, prevKey, a)
 }
 
@@ -503,12 +516,16 @@ func (a *Agent) watch(ctx context.Context, snapshotURL, diagnosticsURL string, r
 }
 
 func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context) {
-	for _, endpoint := range a.ambassadorWatcher.endpointWatcher.List(ctx) {
-		if endpoint.Name == "ambassador-admin" {
-			a.emissaryPresent = true
-			a.siWatcher.Cancel()
-			return
+	if endpoints, err := a.ambassadorWatcher.endpointWatcher.List(ctx); err == nil {
+		for _, endpoint := range endpoints {
+			if endpoint.Name == "ambassador-admin" {
+				a.emissaryPresent = true
+				a.siWatcher.Cancel()
+				return
+			}
 		}
+	} else {
+		dlog.Warnf(ctx, "Unable to watch for ambassador-admin service, will act as though standalone: %v", err)
 	}
 	a.emissaryPresent = false
 	a.siWatcher.EnsureStarted(ctx)
@@ -681,17 +698,36 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 	}
 
 	if snapshot.Kubernetes != nil {
-		snapshot.Kubernetes.Pods = a.coreWatchers.podWatchers.List(ctx)
+		if snapshot.Kubernetes.Pods, err = a.coreWatchers.podWatchers.List(ctx); err != nil {
+			dlog.Errorf(ctx, "Unable to find pods: %v", err)
+		}
 		dlog.Debugf(ctx, "Found %d pods", len(snapshot.Kubernetes.Pods))
-		snapshot.Kubernetes.ConfigMaps = a.coreWatchers.mapsWatchers.List(ctx)
+		if snapshot.Kubernetes.ConfigMaps, err = a.coreWatchers.mapsWatchers.List(ctx); err != nil {
+			dlog.Errorf(ctx, "Unable to find configmaps: %v", err)
+		}
 		dlog.Debugf(ctx, "Found %d configMaps", len(snapshot.Kubernetes.ConfigMaps))
-		snapshot.Kubernetes.Deployments = a.coreWatchers.deployWatchers.List(ctx)
+		if snapshot.Kubernetes.Deployments, err = a.coreWatchers.deployWatchers.List(ctx); err != nil {
+			dlog.Errorf(ctx, "Unable to find deployments: %v", err)
+		}
 		dlog.Debugf(ctx, "Found %d Deployments", len(snapshot.Kubernetes.Deployments))
-		snapshot.Kubernetes.Endpoints = a.coreWatchers.endpointWatchers.List(ctx)
+		if snapshot.Kubernetes.Endpoints, err = a.coreWatchers.endpointWatchers.List(ctx); err != nil {
+			dlog.Errorf(ctx, "Unable to find endpoints: %v", err)
+		}
 		dlog.Debugf(ctx, "Found %d Endpoints", len(snapshot.Kubernetes.Endpoints))
 		if !a.emissaryPresent {
-			snapshot.Kubernetes.Services = a.siWatcher.serviceWatchers.List(ctx)
-			snapshot.Kubernetes.Ingresses = a.siWatcher.ingressWatchers.List(ctx)
+			if snapshot.Kubernetes.Services, err = a.siWatcher.serviceWatchers.List(ctx); err != nil {
+				dlog.Errorf(ctx, "Unable to find services: %v", err)
+			}
+			dlog.Debugf(ctx, "Found %d services", len(snapshot.Kubernetes.Services))
+			if ingresses, err := a.siWatcher.ingressWatchers.List(ctx); err != nil {
+				dlog.Errorf(ctx, "Unable to find ingresses: %v", err)
+			} else {
+				snapshot.Kubernetes.Ingresses = []*snapshotTypes.Ingress{}
+				for _, ing := range ingresses {
+					snapshot.Kubernetes.Ingresses = append(snapshot.Kubernetes.Ingresses, &snapshotTypes.Ingress{Ingress: *ing})
+				}
+			}
+			dlog.Debugf(ctx, "Found %d ingresses", len(snapshot.Kubernetes.Ingresses))
 		}
 		if a.rolloutStore != nil {
 			snapshot.Kubernetes.ArgoRollouts = a.rolloutStore.StateOfWorld()

@@ -84,7 +84,7 @@ replace (
 require (
 	github.com/argoproj/argo-rollouts v1.2.2
 	github.com/datawire/dlib v1.3.0
-	github.com/datawire/k8sapi v0.0.10
+	github.com/datawire/k8sapi v0.0.11
 	github.com/emissary-ingress/emissary/v3 v3.1.0
 	github.com/getkin/kin-openapi v0.97.0
 	github.com/google/uuid v1.3.0
@@ -97,6 +97,7 @@ require (
 	k8s.io/api v0.25.0
 	k8s.io/apimachinery v0.25.0
 	k8s.io/client-go v0.25.0
+	k8s.io/kubernetes v1.23.1
 )
 
 require (
@@ -139,9 +140,11 @@ require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/hashicorp/consul/api v1.12.0 // indirect
+	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.1.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/serf v0.9.7 // indirect
@@ -190,7 +193,6 @@ require (
 	k8s.io/klog/v2 v2.70.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1 // indirect
 	k8s.io/kubectl v0.25.0 // indirect
-	k8s.io/kubernetes v1.23.1 // indirect
 	k8s.io/metrics v0.25.0 // indirect
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
 	sigs.k8s.io/controller-runtime v0.9.7 // indirect
