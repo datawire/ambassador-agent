@@ -58,6 +58,10 @@ func NewCoreWatchers(clientset *kubernetes.Clientset, namespaces []string) *Core
 
 func labelMatching(pod *kates.Pod, svcs []*kates.Service) bool {
 	matchSvc := func(pod *kates.Pod, svc *kates.Service) bool {
+		if pod.Namespace != svc.Namespace {
+			return false
+		}
+
 		for k, v := range svc.Spec.Selector {
 			if pod.Labels[k] != v {
 				return false
