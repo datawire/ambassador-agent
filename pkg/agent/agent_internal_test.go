@@ -58,8 +58,8 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 	testcases := []struct {
 		testName       string
 		agent          *Agent
-		secrets        []kates.Secret
-		configMaps     []kates.ConfigMap
+		secrets        []*kates.Secret
+		configMaps     []*kates.ConfigMap
 		expectedAPIKey string
 	}{
 		{
@@ -70,8 +70,8 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 				ambassadorAPIKey:             "",
 				ambassadorAPIKeyEnvVarValue:  "",
 			},
-			secrets: []kates.Secret{},
-			configMaps: []kates.ConfigMap{
+			secrets: []*kates.Secret{},
+			configMaps: []*kates.ConfigMap{
 				{
 					ObjectMeta: objMeta,
 					Data: map[string]string{
@@ -89,7 +89,7 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 				ambassadorAPIKey:             "",
 				ambassadorAPIKeyEnvVarValue:  "",
 			},
-			secrets: []kates.Secret{
+			secrets: []*kates.Secret{
 				{
 					ObjectMeta: objMeta,
 					Data: map[string][]byte{
@@ -97,7 +97,7 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 					},
 				},
 			},
-			configMaps: []kates.ConfigMap{
+			configMaps: []*kates.ConfigMap{
 				{
 					ObjectMeta: objMeta,
 					Data: map[string]string{
@@ -115,7 +115,7 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 				ambassadorAPIKey:             "",
 				ambassadorAPIKeyEnvVarValue:  "",
 			},
-			secrets: []kates.Secret{
+			secrets: []*kates.Secret{
 				{
 					ObjectMeta: objMeta,
 					Data: map[string][]byte{
@@ -123,7 +123,7 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 					},
 				},
 			},
-			configMaps:     []kates.ConfigMap{},
+			configMaps:     []*kates.ConfigMap{},
 			expectedAPIKey: "secretvalue",
 		},
 		{
@@ -134,8 +134,8 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 				ambassadorAPIKey:             "someexistingvalue",
 				ambassadorAPIKeyEnvVarValue:  "",
 			},
-			secrets: []kates.Secret{},
-			configMaps: []kates.ConfigMap{
+			secrets: []*kates.Secret{},
+			configMaps: []*kates.ConfigMap{
 				{
 					ObjectMeta: objMeta,
 					Data:       map[string]string{},
@@ -151,13 +151,13 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 				ambassadorAPIKey:             "someexistingvalue",
 				ambassadorAPIKeyEnvVarValue:  "",
 			},
-			secrets: []kates.Secret{
+			secrets: []*kates.Secret{
 				{
 					ObjectMeta: objMeta,
 					Data:       map[string][]byte{},
 				},
 			},
-			configMaps:     []kates.ConfigMap{},
+			configMaps:     []*kates.ConfigMap{},
 			expectedAPIKey: "",
 		},
 		{
@@ -178,7 +178,7 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 				ambassadorAPIKey:             "somevaluefromsomewhereelse",
 				ambassadorAPIKeyEnvVarValue:  "gotfromenv",
 			},
-			secrets: []kates.Secret{
+			secrets: []*kates.Secret{
 				{
 					ObjectMeta: objMeta,
 					Data: map[string][]byte{
@@ -186,7 +186,7 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 					},
 				},
 			},
-			configMaps: []kates.ConfigMap{
+			configMaps: []*kates.ConfigMap{
 				{
 					ObjectMeta: objMeta,
 					Data: map[string]string{
@@ -201,7 +201,7 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 		t.Run(tc.testName, func(t *testing.T) {
 			ctx := dlog.NewTestContext(t, false)
 
-			tc.agent.handleAPIKeyConfigChange(ctx, tc.secrets, tc.configMaps)
+			tc.agent._handleAPIKeyConfigChange(ctx, tc.secrets, tc.configMaps)
 
 			assert.Equal(t, tc.agent.ambassadorAPIKey, tc.expectedAPIKey)
 
@@ -223,7 +223,6 @@ func TestProcessSnapshot(t *testing.T) {
 		// expected value of Agent.connInfo after calling ProcessSnapshot
 		// in certain circumstances, ProcessSnapshot resets that info
 		expectedConnInfo *ConnInfo
-		podStore         *podStore
 		assertionFunc    func(*testing.T, *agent.Snapshot)
 		address          string
 	}{
@@ -302,98 +301,13 @@ func TestProcessSnapshot(t *testing.T) {
 			// `address`
 			expectedConnInfo: &ConnInfo{hostname: "somecooladdress", port: "1234", secure: false},
 		},
-		{
-			// if the agent has pods that match the service selector labels, it should
-			// return those pods in the snapshot
-			testName: "pods-in-snapshot",
-			inputSnap: &snapshotTypes.Snapshot{
-				AmbassadorMeta: &snapshotTypes.AmbassadorMetaInfo{
-					AmbassadorID:      "default",
-					ClusterID:         "dopecluster",
-					AmbassadorVersion: "v1.0",
-				},
-				Kubernetes: &snapshotTypes.KubernetesSnapshot{
-					Services: []*kates.Service{
-						{
-							Spec: kates.ServiceSpec{
-								Selector: map[string]string{"label": "matching"},
-							},
-						},
-						{
-							Spec: kates.ServiceSpec{
-								Selector: map[string]string{"label2": "alsomatching", "label3": "yay"},
-							},
-						},
-					},
-				},
-			},
-			podStore: NewPodStore([]*kates.Pod{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "pod1",
-						Namespace: "ns",
-						Labels:    map[string]string{"label": "matching", "tag": "1.0"},
-					},
-					Status: v1.PodStatus{
-						Phase: v1.PodRunning,
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "pod2",
-						Namespace: "ns",
-						Labels:    map[string]string{"label2": "alsomatching", "tag": "1.0", "label3": "yay"},
-					},
-					Status: v1.PodStatus{
-						Phase: v1.PodFailed,
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "pod3",
-						Namespace: "ns",
-						Labels:    map[string]string{"label2": "alsomatching", "tag": "1.0"},
-					},
-					Status: v1.PodStatus{
-						Phase: v1.PodSucceeded,
-					},
-				},
-			}),
-			// should not error
-			ret: nil,
-			res: &agent.Snapshot{
-				Identity: &agent.Identity{
-					Version:   "",
-					Hostname:  "ambassador-host",
-					License:   "",
-					ClusterId: "dopecluster",
-					Label:     "",
-				},
-				ContentType: snapshotTypes.ContentTypeJSON,
-				ApiVersion:  snapshotTypes.ApiVersion,
-			},
-			expectedConnInfo: &ConnInfo{hostname: "app.getambassador.io", port: "443", secure: true},
-			assertionFunc: func(t *testing.T, agentSnap *agent.Snapshot) {
-				assert.NotEmpty(t, agentSnap.RawSnapshot)
-				ambSnap := &snapshotTypes.Snapshot{}
-				err := json.Unmarshal(agentSnap.RawSnapshot, ambSnap)
-				assert.Nil(t, err)
-				assert.Equal(t, len(ambSnap.Kubernetes.Services), 2)
-				assert.Equal(t, len(ambSnap.Kubernetes.Pods), 2)
-				for _, p := range ambSnap.Kubernetes.Pods {
-					assert.Contains(t, []string{"pod1", "pod2"}, p.ObjectMeta.Name)
-				}
-			},
-		},
 	}
 
 	for _, testcase := range snapshotTests {
 		t.Run(testcase.testName, func(t *testing.T) {
-			a := NewAgent(nil, nil, nil)
+			a := &Agent{}
 			ctx := dlog.NewTestContext(t, false)
-			a.coreStore = &coreStore{podStore: testcase.podStore}
 			a.connAddress = testcase.address
-
 			actualRet := a.ProcessSnapshot(ctx, testcase.inputSnap, "ambassador-host")
 
 			assert.Equal(t, testcase.ret, actualRet)
@@ -401,7 +315,8 @@ func TestProcessSnapshot(t *testing.T) {
 				assert.Nil(t, a.reportToSend)
 			} else {
 				assert.NotNil(t, a.reportToSend)
-				assert.Equal(t, testcase.res.Identity, a.reportToSend.Identity)
+				assert.Equal(t, testcase.res.Identity.Hostname, a.reportToSend.Identity.Hostname)
+				assert.Equal(t, testcase.res.Identity.ClusterId, a.reportToSend.Identity.ClusterId)
 				assert.Equal(t, testcase.res.ContentType, a.reportToSend.ContentType)
 				assert.Equal(t, testcase.res.ApiVersion, a.reportToSend.ApiVersion)
 			}
@@ -429,7 +344,6 @@ func TestProcessDiagnosticsSnapshot(t *testing.T) {
 		// expected value of Agent.connInfo after calling ProcessDiagnostics
 		// in certain circumstances, ProcessDiagnostics resets that info
 		expectedConnInfo *ConnInfo
-		podStore         *podStore
 		assertionFunc    func(*testing.T, *agent.Diagnostics)
 		address          string
 	}{
@@ -508,9 +422,8 @@ func TestProcessDiagnosticsSnapshot(t *testing.T) {
 
 	for _, testcase := range diagnosticsTests {
 		t.Run(testcase.testName, func(t *testing.T) {
-			a := NewAgent(nil, nil, nil)
+			a := &Agent{}
 			ctx := dlog.NewTestContext(t, false)
-			a.coreStore = &coreStore{podStore: testcase.podStore}
 			a.connAddress = testcase.address
 
 			agentDiagnostics, actualRet := a.ProcessDiagnostics(ctx, testcase.inputDiagnostics, "ambassador-host")
@@ -534,33 +447,20 @@ func TestProcessDiagnosticsSnapshot(t *testing.T) {
 	}
 }
 
-type mockAccumulator struct {
-	changedChan     chan struct{}
-	targetInterface interface{}
-}
-
-func (m *mockAccumulator) Changed() <-chan struct{} {
-	return m.changedChan
-}
-
-func (m *mockAccumulator) FilteredUpdate(_ context.Context, target interface{}, deltas *[]*kates.Delta, predicate func(*kates.Unstructured) bool) (bool, error) {
-	rawtarget, err := json.Marshal(m.targetInterface)
-	if err != nil {
-		return false, err
-	}
-	if err := json.Unmarshal(rawtarget, target); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
 // Set up a watch and send a MinReportPeriod directive to the directive channel
 // Make sure that Agent.MinReportPeriod is set to this new value
 func TestWatchReportPeriodDirective(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 
-	a := NewAgent(nil, nil, nil)
+	a := &Agent{
+		directiveHandler: &BasicDirectiveHandler{
+			DefaultMinReportPeriod: defaultMinReportPeriod,
+			rolloutsGetterFactory:  nil,
+			secretsGetterFactory:   nil,
+		},
+		emissaryPresent: true,
+	}
 	watchDone := make(chan error)
 
 	directiveChan := make(chan *agent.Directive)
@@ -573,17 +473,11 @@ func TestWatchReportPeriodDirective(t *testing.T) {
 	expectedDuration, err := time.ParseDuration("50s10ns")
 	assert.Nil(t, err)
 
-	podAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
-	}
-	configAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
-	}
 	rolloutCallback := make(chan *GenericCallback)
 	appCallback := make(chan *GenericCallback)
 
 	go func() {
-		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, configAcc, podAcc, rolloutCallback, appCallback)
+		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 	dur := durationpb.Duration{
@@ -621,23 +515,24 @@ func TestWatchEmptyDirectives(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 
-	a := NewAgent(nil, nil, nil)
+	a := &Agent{
+		directiveHandler: &BasicDirectiveHandler{
+			DefaultMinReportPeriod: defaultMinReportPeriod,
+			rolloutsGetterFactory:  nil,
+			secretsGetterFactory:   nil,
+		},
+		emissaryPresent: true,
+	}
 	id := agent.Identity{}
 	a.agentID = &id
 	watchDone := make(chan error)
 	directiveChan := make(chan *agent.Directive)
 	a.newDirective = directiveChan
 
-	podAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
-	}
-	configAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
-	}
 	rolloutCallback := make(chan *GenericCallback)
 	appCallback := make(chan *GenericCallback)
 	go func() {
-		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, configAcc, podAcc, rolloutCallback, appCallback)
+		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 
@@ -683,7 +578,14 @@ func TestWatchStopReportingDirective(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 
-	a := NewAgent(nil, nil, nil)
+	a := &Agent{
+		directiveHandler: &BasicDirectiveHandler{
+			DefaultMinReportPeriod: defaultMinReportPeriod,
+			rolloutsGetterFactory:  nil,
+			secretsGetterFactory:   nil,
+		},
+		emissaryPresent: true,
+	}
 	id := agent.Identity{}
 	a.agentID = &id
 	watchDone := make(chan error)
@@ -702,18 +604,13 @@ func TestWatchStopReportingDirective(t *testing.T) {
 	}
 	a.comm = c
 	a.connInfo = &ConnInfo{hostname: "localhost", port: "8080", secure: false}
-	podAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
-	}
-	configAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
-	}
+
 	rolloutCallback := make(chan *GenericCallback)
 	appCallback := make(chan *GenericCallback)
 
 	// start watch
 	go func() {
-		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, configAcc, podAcc, rolloutCallback, appCallback)
+		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 
@@ -749,7 +646,15 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 	ambId := getRandomAmbassadorID()
-	a := NewAgent(nil, nil, nil)
+	a := &Agent{
+		directiveHandler: &BasicDirectiveHandler{
+			DefaultMinReportPeriod: defaultMinReportPeriod,
+			rolloutsGetterFactory:  nil,
+			secretsGetterFactory:   nil,
+		},
+		emissaryPresent: true,
+	}
+	a.reportComplete = make(chan error)
 	a.reportingStopped = false
 	a.reportRunning.Set(false)
 	// set to 3 seconds so we can reliably assert that reportRunning is true later
@@ -801,18 +706,12 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 	a.comm = c
 
 	watchDone := make(chan error)
-	podAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
-	}
-	configAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
-	}
 	rolloutCallback := make(chan *GenericCallback)
 	appCallback := make(chan *GenericCallback)
 
 	// start the watch
 	go func() {
-		err := a.watch(ctx, ts.URL, diagnosticsURL, configAcc, podAcc, rolloutCallback, appCallback)
+		err := a.watch(ctx, ts.URL, diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 
@@ -842,6 +741,26 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 	}
 }
 
+type MockCoreWatchers struct {
+	pods   []*kates.Pod
+	endpts []*kates.Endpoints
+	deploy []*kates.Deployment
+	cmaps  []*kates.ConfigMap
+	ch     <-chan struct{}
+}
+
+func (m *MockCoreWatchers) EnsureStarted(ctx context.Context) {}
+func (m *MockCoreWatchers) Cancel()                           {}
+func (m *MockCoreWatchers) Subscribe(ctx context.Context) <-chan struct{} {
+	return m.ch
+}
+func (m *MockCoreWatchers) LoadSnapshot(ctx context.Context, snapshot *snapshotTypes.Snapshot) {
+	snapshot.Kubernetes.Pods = m.pods
+	snapshot.Kubernetes.Endpoints = m.endpts
+	snapshot.Kubernetes.Deployments = m.deploy
+	snapshot.Kubernetes.ConfigMaps = m.cmaps
+}
+
 // Start a watch. Setup a mock client to capture what we would have sent to the agent com
 // Send a snapshot with some data in it thru the channel
 // Make sure the Snapshot.KubernetesSecrets and Snapshot.Invalid get scrubbed of sensitive data and
@@ -851,7 +770,15 @@ func TestWatchWithSnapshot(t *testing.T) {
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 	clusterID := "coolcluster"
 	ambId := getRandomAmbassadorID()
-	a := NewAgent(nil, nil, nil)
+	a := &Agent{
+		directiveHandler: &BasicDirectiveHandler{
+			DefaultMinReportPeriod: defaultMinReportPeriod,
+			rolloutsGetterFactory:  nil,
+			secretsGetterFactory:   nil,
+		},
+		emissaryPresent: true,
+	}
+	a.reportComplete = make(chan error)
 	a.reportingStopped = false
 	a.reportRunning.Set(false)
 
@@ -938,71 +865,65 @@ func TestWatchWithSnapshot(t *testing.T) {
 	a.comm = c
 
 	watchDone := make(chan error)
-	podAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
-		targetInterface: CoreSnapshot{
-			Pods: []*kates.Pod{
-				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Pod",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "some-pod",
-						Namespace: "default",
-					},
-					Status: v1.PodStatus{
-						Phase: v1.PodRunning,
-					},
+	a.coreWatchers = &MockCoreWatchers{
+		pods: []*kates.Pod{
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Pod",
+					APIVersion: "v1",
 				},
-			},
-			Endpoints: []*kates.Endpoints{
-				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Endpoints",
-						APIVersion: "v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "some-endpoint",
-						Namespace: "default",
-					},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "some-pod",
+					Namespace: "default",
 				},
-			},
-			Deployments: []*kates.Deployment{
-				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Deployment",
-						APIVersion: "apps/v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "some-deployment",
-						Namespace: "default",
-					},
-				},
-			},
-			ConfigMaps: []*kates.ConfigMap{
-				{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "ConfigMap",
-						APIVersion: "",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "some-config-map",
-						Namespace: "default",
-					},
+				Status: v1.PodStatus{
+					Phase: v1.PodRunning,
 				},
 			},
 		},
-	}
-	configAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
+		endpts: []*kates.Endpoints{
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Endpoints",
+					APIVersion: "v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "some-endpoint",
+					Namespace: "default",
+				},
+			},
+		},
+		deploy: []*kates.Deployment{
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "some-deployment",
+					Namespace: "default",
+				},
+			},
+		},
+		cmaps: []*kates.ConfigMap{
+			{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConfigMap",
+					APIVersion: "",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "some-config-map",
+					Namespace: "default",
+				},
+			},
+		},
 	}
 	rolloutCallback := make(chan *GenericCallback)
 	appCallback := make(chan *GenericCallback)
 
 	// start the watch
 	go func() {
-		err := a.watch(ctx, ts.URL, diagnosticsURL, configAcc, podAcc, rolloutCallback, appCallback)
+		err := a.watch(ctx, ts.URL, diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 
@@ -1012,7 +933,6 @@ func TestWatchWithSnapshot(t *testing.T) {
 	// returning static content
 	reportsSent := 0
 	for reportsSent < 2 {
-		podAcc.changedChan <- struct{}{}
 		select {
 		case err := <-a.reportComplete:
 			assert.Nil(t, err)
@@ -1109,7 +1029,15 @@ func TestWatchEmptySnapshot(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 
-	a := NewAgent(nil, nil, nil)
+	a := &Agent{
+		directiveHandler: &BasicDirectiveHandler{
+			DefaultMinReportPeriod: defaultMinReportPeriod,
+			rolloutsGetterFactory:  nil,
+			secretsGetterFactory:   nil,
+		},
+		emissaryPresent: true,
+	}
+	a.reportComplete = make(chan error)
 	minReport, err := time.ParseDuration("1ms")
 	assert.Nil(t, err)
 	a.minReportPeriod = minReport
@@ -1136,16 +1064,10 @@ func TestWatchEmptySnapshot(t *testing.T) {
 		}
 	}))
 	defer ts.Close()
-	podAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
-	}
-	configAcc := &mockAccumulator{
-		changedChan: make(chan struct{}),
-	}
 	rolloutCallback := make(chan *GenericCallback)
 	appCallback := make(chan *GenericCallback)
 	go func() {
-		err := a.watch(ctx, ts.URL, diagnosticsURL, configAcc, podAcc, rolloutCallback, appCallback)
+		err := a.watch(ctx, ts.URL, diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 	select {
