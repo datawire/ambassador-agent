@@ -17,16 +17,8 @@ type CoreWatchers struct {
 	cond             *sync.Cond
 	cmapsWatchers    k8sapi.WatcherGroup[*kates.ConfigMap]
 	deployWatchers   k8sapi.WatcherGroup[*kates.Deployment]
-	podWatchers      PodWatchers
+	podWatchers      k8sapi.WatcherGroup[*kates.Pod]
 	endpointWatchers k8sapi.WatcherGroup[*kates.Endpoints]
-}
-
-//go:generate mockgen -build_flags=--mod=mod -destination=mocks/PodWatchers_mock.go -package=mocks . PodWatchers
-type PodWatchers interface {
-	AddWatcher(*k8sapi.Watcher[*kates.Pod]) error
-	List(ctx context.Context) ([]*kates.Pod, error)
-	EnsureStarted(ctx context.Context, cb func(bool))
-	Cancel()
 }
 
 func NewCoreWatchers(clientset *kubernetes.Clientset, namespaces []string) *CoreWatchers {
