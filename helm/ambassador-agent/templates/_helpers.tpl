@@ -57,12 +57,13 @@ Use fullImageOverride if present,
 Then if the image repository is explicitly set, use "repository:image"
 */}}
 {{- define "ambassador-agent.image" -}}
+{{ $tag := .Values.image.tag | default .Chart.AppVersion }}
 {{- if .Values.image.fullImageOverride }}
 {{- .Values.image.fullImageOverride }}
 {{- else if hasKey .Values.image "repository"  -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- printf "%s:%s" .Values.image.repository $tag -}}
 {{- else -}}
-{{- printf "%s:%s" "docker.io/datawire/ambassador-agent" .Values.image.tag -}}
+{{- printf "%s:%s" "docker.io/datawire/ambassador-agent" $tag -}}
 {{- end -}}
 {{- end -}}
 
