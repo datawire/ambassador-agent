@@ -34,7 +34,10 @@ import (
 )
 
 const defaultMinReportPeriod = 30 * time.Second
-const cloudConnectTokenKey = "CLOUD_CONNECT_TOKEN"
+const (
+	cloudConnectTokenKey             = "CLOUD_CONNECT_TOKEN"
+	cloudConnectTokenDefaultResource = "ambassador-agent-cloud-token"
+)
 
 type Comm interface {
 	Close() error
@@ -202,7 +205,7 @@ func NewAgent(
 		ambassadorAPIKeyEnvVarValue:  os.Getenv(cloudConnectTokenKey),
 		connAddress:                  os.Getenv("RPC_CONNECTION_ADDRESS"),
 		agentNamespace:               agentNamespace,
-		agentCloudResourceConfigName: getEnvWithDefault("AGENT_CONFIG_RESOURCE_NAME", "ambassador-agent-cloud-token"),
+		agentCloudResourceConfigName: getEnvWithDefault("AGENT_CONFIG_RESOURCE_NAME", cloudConnectTokenDefaultResource),
 		directiveHandler:             directiveHandler,
 		reportRunning:                atomicBool{value: false},
 		agentWatchFieldSelector:      getEnvWithDefault("AGENT_WATCH_FIELD_SELECTOR", "metadata.namespace!=kube-system"),
@@ -332,7 +335,7 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	// there _should_ only be one secret here, but we're going to loop and check that the object
 	// meta matches what we expect
 	for _, secret := range secrets {
-		if secret.GetName() == a.agentCloudResourceConfigName && secret.GetNamespace() == a.agentNamespace {
+		if (secret.GetName() == a.agentCloudResourceConfigName || secret.GetName() == cloudConnectTokenDefaultResource) && secret.GetNamespace() == a.agentNamespace {
 			connTokenBytes, ok := secret.Data[cloudConnectTokenKey]
 			connToken := string(connTokenBytes)
 			dlog.Infof(ctx, "Setting cloud connect token from secret")
@@ -346,7 +349,7 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	// there _should_ only be one config here, but we're going to loop and check that the object
 	// meta matches what we expect
 	for _, cm := range cmaps {
-		if cm.GetName() == a.agentCloudResourceConfigName && cm.GetNamespace() == a.agentNamespace {
+		if (cm.GetName() == a.agentCloudResourceConfigName || cm.GetName() == cloudConnectTokenDefaultResource) && cm.GetNamespace() == a.agentNamespace {
 			connTokenBytes, ok := cm.Data[cloudConnectTokenKey]
 			connToken := string(connTokenBytes)
 			dlog.Infof(ctx, "Setting cloud connect token from configmap")
