@@ -48,29 +48,6 @@ func NewCoreWatchers(clientset *kubernetes.Clientset, namespaces []string) *Core
 	return coreWatchers
 }
 
-func labelMatching(pod *kates.Pod, svcs []*kates.Service) bool {
-	matchSvc := func(pod *kates.Pod, svc *kates.Service) bool {
-		if pod.Namespace != svc.Namespace {
-			return false
-		}
-
-		for k, v := range svc.Spec.Selector {
-			if pod.Labels[k] != v {
-				return false
-			}
-		}
-		return true
-	}
-
-	for _, svc := range svcs {
-		if matchSvc(pod, svc) {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (w *CoreWatchers) loadPods(ctx context.Context, svcs []*kates.Service) []*kates.Pod {
 	pods, err := w.podWatchers.List(ctx)
 	if err != nil {
@@ -80,7 +57,7 @@ func (w *CoreWatchers) loadPods(ctx context.Context, svcs []*kates.Service) []*k
 
 	fpods := make([]*kates.Pod, 0)
 	for _, pod := range pods {
-		if allowedNamespace(pod.GetNamespace()) && pod.Status.Phase != v1.PodSucceeded && labelMatching(pod, svcs) {
+		if allowedNamespace(pod.GetNamespace()) && pod.Status.Phase != v1.PodSucceeded {
 			fpods = append(fpods, pod)
 		}
 	}
