@@ -15,6 +15,21 @@ rules:
   verbs: [ "get", "create", "delete", "patch", "watch"]
 {{ $root:=. }}
 {{ $argo:=.Values.rbac.argo }}
+{{- if .Values.rbac.namespaces -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ambassador-agent.fullname" . }}-get-{{ include "ambassador-agent.namespace" . }}
+  namespace: {{ include "ambassador-agent.namespace" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "ambassador-agent.name" . }}
+    {{- include "ambassador-agent.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: [ "namespaces" ]
+  resourceNames: ["{{ include "ambassador-agent.namespace" .  }}"]
+  verbs: [ "get" ]
+{{- end -}}
 {{ range .Values.rbac.namespaces }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -34,6 +49,8 @@ rules:
     - "argoproj.io"
     {{ end }}
   resources:
+    - "ingresses"
+    - "services"
     - "pods"
     - "deployments"
     - "endpoints"
