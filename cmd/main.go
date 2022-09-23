@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +14,7 @@ import (
 	"github.com/datawire/ambassador-agent/pkg/agent"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -111,6 +114,18 @@ func main() {
 			Identity: id,
 		},
 	}
+	leaderElection := true
+	_, _, err = lock.Get(ctx)
+	if err != nil {
+		se := &apierrors.StatusError{}
+		if errors.As(err, &se) && se.Status().Code == http.StatusForbidden {
+			dlog.Warnf(ctx, "Agent has no permissions to work with leases; will disable leader election. This may be inefficient. To fix, please install the agent from a new version of its helm chart")
+			leaderElection = false
+		} else {
+			// This may be as simple as a not found
+			dlog.Debugf(ctx, "Get lease failed: %v. Will try to start up regardless", err)
+		}
+	}
 
 	// use a go context to kill watchers OnStoppedLeading
 	var (
@@ -134,40 +149,44 @@ func main() {
 		})
 	}
 
-	// start the leader election code loop
-	leaderelection.RunOrDie(leaseCtx, leaderelection.LeaderElectionConfig{
-		Lock: lock,
-		// IMPORTANT: you MUST ensure that any code you have that
-		// is protected by the lease must terminate **before**
-		// you call cancel. Otherwise, you could have a background
-		// loop still running and another process could
-		// get elected before your background loop finished, violating
-		// the stated goal of the lease.
-		ReleaseOnCancel: true,
-		LeaseDuration:   60 * time.Second,
-		RenewDeadline:   40 * time.Second,
-		RetryPeriod:     8 * time.Second,
-		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: func(ctx context.Context) {
-				// we're notified when we start - this is where you would
-				// usually put your code
-				run(ctx)
+	if !leaderElection {
+		run(ctx)
+	} else {
+		// start the leader election code loop
+		leaderelection.RunOrDie(leaseCtx, leaderelection.LeaderElectionConfig{
+			Lock: lock,
+			// IMPORTANT: you MUST ensure that any code you have that
+			// is protected by the lease must terminate **before**
+			// you call cancel. Otherwise, you could have a background
+			// loop still running and another process could
+			// get elected before your background loop finished, violating
+			// the stated goal of the lease.
+			ReleaseOnCancel: true,
+			LeaseDuration:   60 * time.Second,
+			RenewDeadline:   40 * time.Second,
+			RetryPeriod:     8 * time.Second,
+			Callbacks: leaderelection.LeaderCallbacks{
+				OnStartedLeading: func(ctx context.Context) {
+					// we're notified when we start - this is where you would
+					// usually put your code
+					run(ctx)
+				},
+				OnStoppedLeading: func() {
+					// we can do cleanup here
+					dlog.Infof(leaseCtx, "leader lost: %s", id)
+					watchCancel()
+				},
+				OnNewLeader: func(identity string) {
+					// we're notified when new leader elected
+					if identity == id {
+						// I just got the lock
+						return
+					}
+					dlog.Infof(leaseCtx, "new leader elected: %s", identity)
+				},
 			},
-			OnStoppedLeading: func() {
-				// we can do cleanup here
-				dlog.Infof(leaseCtx, "leader lost: %s", id)
-				watchCancel()
-			},
-			OnNewLeader: func(identity string) {
-				// we're notified when new leader elected
-				if identity == id {
-					// I just got the lock
-					return
-				}
-				dlog.Infof(leaseCtx, "new leader elected: %s", identity)
-			},
-		},
-	})
+		})
+	}
 
 	err = grp.Wait()
 	if err != nil {
