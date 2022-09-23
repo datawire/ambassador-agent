@@ -310,7 +310,7 @@ func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
 	if err != nil {
 		dlog.Warnf(ctx, "Unable to list configmaps for cloud connect token: %v", err)
 	}
-	a._handleAPIKeyConfigChange(ctx, secrets, cmaps)
+	a.setAPIKeyConfigFrom(ctx, secrets, cmaps)
 }
 
 // Handle change to the ambassadorAPIKey that we auth to the agent with
@@ -318,7 +318,7 @@ func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
 // so if a secret exists, read from that. then, check if a config map exists, and read the value
 // from that. If neither a secret or a configmap exists, use the value from the environment that we
 // stored on startup.
-func (a *Agent) _handleAPIKeyConfigChange(ctx context.Context, secrets []*kates.Secret, cmaps []*kates.ConfigMap) {
+func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret, cmaps []*kates.ConfigMap) {
 	// reset the connection so we use a new api key (or break the connection if the api key was
 	// unset). The agent will reset the connection the next time it tries to send a report
 	resetComm := func(newKey string, oldKey string, a *Agent) {

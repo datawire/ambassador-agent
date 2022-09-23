@@ -201,7 +201,7 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 		t.Run(tc.testName, func(t *testing.T) {
 			ctx := dlog.NewTestContext(t, false)
 
-			tc.agent._handleAPIKeyConfigChange(ctx, tc.secrets, tc.configMaps)
+			tc.agent.setAPIKeyConfigFrom(ctx, tc.secrets, tc.configMaps)
 
 			assert.Equal(t, tc.agent.ambassadorAPIKey, tc.expectedAPIKey)
 
