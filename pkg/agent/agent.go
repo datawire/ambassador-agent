@@ -379,14 +379,16 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 // the Director.
 func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) error {
 	dlog.Info(ctx, "Agent is running...")
+	ambHost, err := parseAmbassadorAdminHost(snapshotURL)
+	if err != nil {
+		// if we can't parse the host out of the url we won't be able to talk to ambassador
+		// anyway
+		return err
+	}
 
-	a.configWatchers.EnsureStarted(ctx)
-	// TODO wait for config sync
 	a.waitForAPIKey(ctx)
 	a.coreWatchers.EnsureStarted(ctx)
-	// TODO wait for amb sync
-	a.ambassadorWatcher.EnsureStarted(ctx)
-	a.handleAPIKeyConfigChange(ctx)
+	a.handleAmbassadorEndpointChange(ctx, ambHost)
 
 	configCh := k8sapi.Subscribe(ctx, a.configWatchers.cond)
 	ambCh := k8sapi.Subscribe(ctx, a.ambassadorWatcher.cond)
@@ -405,7 +407,7 @@ func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) e
 	applicationGvr, _ := schema.ParseResourceArg("applications.v1alpha1.argoproj.io")
 	applicationCallback := dc.WatchGeneric(ctx, ns, applicationGvr)
 
-	return a.watch(ctx, snapshotURL, diagnosticsURL, configCh, ambCh, rolloutCallback, applicationCallback)
+	return a.watch(ctx, snapshotURL, diagnosticsURL, ambHost, configCh, ambCh, rolloutCallback, applicationCallback)
 }
 
 func (a *Agent) waitForAPIKey(ctx context.Context) {
@@ -429,16 +431,10 @@ func (a *Agent) waitForAPIKey(ctx context.Context) {
 
 func (a *Agent) watch(
 	ctx context.Context,
-	snapshotURL, diagnosticsURL string,
+	snapshotURL, diagnosticsURL, ambHost string,
 	configCh, ambCh <-chan struct{},
 	rolloutCallback, applicationCallback <-chan *GenericCallback) error {
-	ambHost, err := parseAmbassadorAdminHost(snapshotURL)
-	if err != nil {
-		// if we can't parse the host out of the url we won't be able to talk to ambassador
-		// anyway
-		return err
-	}
-
+	var err error
 	a.apiDocsStore = NewAPIDocsStore()
 	applicationStore := NewApplicationStore()
 	rolloutStore := NewRolloutStore()
