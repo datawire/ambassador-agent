@@ -63,7 +63,7 @@ Then if the image repository is explicitly set, use "repository:image"
 {{- else if hasKey .Values.image "repository"  -}}
 {{- printf "%s:%s" .Values.image.repository $tag -}}
 {{- else -}}
-{{- printf "%s:%s" "docker.io/datawire/ambassador-agent" $tag -}}
+{{- printf "%s:%s" "docker.io/ambassador/ambassador-agent" $tag -}}
 {{- end -}}
 {{- end -}}
 
