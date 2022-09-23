@@ -7,12 +7,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const (
-	NamespaceKubeSystem = "kube-system"
-)
-
 // CoreSnapshot reflects the current state of the kates accumulators for the given
 // resource types.
+// DEPRECEATED
 type CoreSnapshot struct {
 	Pods        []*kates.Pod
 	ConfigMaps  []*kates.ConfigMap
@@ -22,6 +19,7 @@ type CoreSnapshot struct {
 
 // coreStore is used to store core k8s resources that are not handled by default
 // by Ambassador's snapshot.
+// DEPRECEATED
 type coreStore struct {
 	podStore        *podStore
 	configMapStore  *configMapStore
@@ -46,6 +44,7 @@ type endpointStore struct {
 }
 
 // NewCoreStore will create a new coreStore with the given coreSnapshot.
+// DEPRECEATED
 func NewCoreStore(snapshot *CoreSnapshot) *coreStore {
 	return &coreStore{
 		podStore:        NewPodStore(snapshot.Pods),
@@ -149,8 +148,5 @@ func (store *deploymentStore) StateOfWorld() []*kates.Deployment {
 // allowedNamespace will check if resources from the given namespace
 // should be reported to Ambassador Cloud.
 func allowedNamespace(namespace string) bool {
-	if namespace != NamespaceKubeSystem {
-		return true
-	}
-	return false
+	return namespace != "kube-system"
 }
