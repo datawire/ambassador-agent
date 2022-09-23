@@ -458,7 +458,7 @@ func (a *Agent) watch(
 		case <-configCh:
 			a.handleAPIKeyConfigChange(ctx)
 		case <-ambCh:
-			a.handleAmbassadorEndpointChange(ctx)
+			a.handleAmbassadorEndpointChange(ctx, ambHost)
 		case callback, ok := <-rolloutCallback:
 			if ok {
 				dlog.Debugf(ctx, "argo rollout callback: %v", callback.EventType)
@@ -529,10 +529,10 @@ func (a *Agent) watch(
 	}
 }
 
-func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context) {
+func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context, ambassadorHost string) {
 	if endpoints, err := a.ambassadorWatcher.endpointWatcher.List(ctx); err == nil {
 		for _, endpoint := range endpoints {
-			if endpoint.Name == "ambassador-admin" {
+			if endpoint.Name == ambassadorHost {
 				a.emissaryPresent = true
 				a.fallbackWatcher.Cancel()
 				return
