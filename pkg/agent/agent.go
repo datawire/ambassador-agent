@@ -526,9 +526,10 @@ func (a *Agent) watch(
 }
 
 func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context, ambassadorHost string) {
+	target := strings.Split(ambassadorHost, ".")[0]
 	if endpoints, err := a.ambassadorWatcher.endpointWatcher.List(ctx); err == nil {
 		for _, endpoint := range endpoints {
-			if endpoint.Name == ambassadorHost {
+			if endpoint.Name == target {
 				a.emissaryPresent = true
 				a.fallbackWatcher.Cancel()
 				return
