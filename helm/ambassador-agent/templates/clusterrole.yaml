@@ -78,7 +78,20 @@ rules:
   resourceNames: ["default"]
   verbs: [ "get" ]
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ambassador-agent.fullname" . }}-ingresses
+  labels:
+    rbac.getambassador.io/role-group: {{ include "ambassador-agent.rbacName" . }}
+    app.kubernetes.io/name: {{ include "ambassador-agent.name" . }}
+    {{- include "ambassador-agent.labels" . | nindent 4 }}
+rules:
+- apiGroups: ["networking.k8s.io", "extensions"]
+  resources: [ "ingresses" ]
+  verbs: [ "get", "list", "watch" ]
 {{- if .Values.rbac.argo }}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -103,19 +116,6 @@ metadata:
 rules:
 - apiGroups: ["argoproj.io"]
   resources: [ "applications" ]
-  verbs: [ "get", "list", "watch" ]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ include "ambassador-agent.fullname" . }}-ingresses
-  labels:
-    rbac.getambassador.io/role-group: {{ include "ambassador-agent.rbacName" . }}
-    app.kubernetes.io/name: {{ include "ambassador-agent.name" . }}
-    {{- include "ambassador-agent.labels" . | nindent 4 }}
-rules:
-- apiGroups: ["networking.k8s.io", "extensions"]
-  resources: [ "ingresses" ]
   verbs: [ "get", "list", "watch" ]
 {{- end }}
 {{- end -}}
