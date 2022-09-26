@@ -530,6 +530,7 @@ func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context, ambassadorHo
 	if endpoints, err := a.ambassadorWatcher.endpointWatcher.List(ctx); err == nil {
 		for _, endpoint := range endpoints {
 			if endpoint.Name == target {
+				dlog.Info(ctx, "Emissary detected, using emissary snapshots.")
 				a.emissaryPresent = true
 				a.fallbackWatcher.Cancel()
 				return
@@ -538,6 +539,7 @@ func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context, ambassadorHo
 	} else {
 		dlog.Warnf(ctx, "Unable to watch for ambassador-admin service, will act as though standalone: %v", err)
 	}
+	dlog.Info(ctx, "Emissary not detected, creating own snapshots.")
 	a.emissaryPresent = false
 	a.fallbackWatcher.EnsureStarted(ctx)
 }
