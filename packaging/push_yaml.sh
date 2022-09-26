@@ -63,8 +63,8 @@ aws s3api put-object \
     --body "$yaml_file"
 echo "Successfully pushed ${prefix}/${yaml_file##*/}"
 
-if [ "$A8R_AGENT_VERSION" != "*-*" ]; then
-    echo "${A8R_AGENT_VERSION}" "$tmpdir/stable.txt"
+if [[ "$A8R_AGENT_VERSION" != "*-*" ]]; then
+    echo "${A8R_AGENT_VERSION}" > "$tmpdir/stable.txt"
     aws s3api put-object \
         --bucket "$bucket" \
         --key "$BUCKET_DIR/ambassador-agent/stable.txt" \
