@@ -1,6 +1,6 @@
 # The Ambassador Agent
 
-An optional component included by default with [Telepresence](https://github.com/telepresenceio/telepresence) and [Ambassador Edge Stack](https://github.com/emissary-ingress/emissary).
+The Ambassador Agent is an optional compenent included with [Telepresence](https://github.com/telepresenceio/telepresence) and [Ambassador Edge Stack](https://github.com/emissary-ingress/emissary).
 The Ambassador Agent securely reports snapshots of your cluster to [Ambassador Cloud](https://www.getambassador.io/products/ambassador-cloud/), which populate the service catalog giving you a birds-eye-view of your cluster and its services.
 
 ## Installation
@@ -21,7 +21,7 @@ helm install ambassador-agent datawire/ambassador-agent --namespace ambassador -
 
 ### Namespace-scoped installation
 
-By default, the Ambassasor Agent is installed with cluster-wide RBAC permissions.
+By default, the Ambassador Agent is installed with cluster-wide RBAC permissions.
 If you would like to do a namespace-scoped installation, the namespaces that you would like the Ambassador Agent to snapshot can be passed in by adding them to `rbac.namespaces` in the `values.yaml` file.
 ```shell
 helm install ambassador-agent datawire/ambassador-agent --namespace ambassador --create-namespace --set "rbac.namespace={<NAMESPACE_1>[,...]}"
@@ -74,7 +74,7 @@ amd64 and arm64 machines, for more information on multi-arch docker builds
 you can take a look at this
 [dockerpage](https://www.docker.com/blog/multi-arch-build-and-images-the-simple-way/)
 
-To trigger the publish workfow, run the following commands:
+To trigger the publish workflow, run the following commands:
 
 ```
 git tag --annotate --message='Releasing version vSEMVER' vSEMVER
