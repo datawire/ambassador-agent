@@ -477,7 +477,7 @@ func TestWatchReportPeriodDirective(t *testing.T) {
 	appCallback := make(chan *GenericCallback)
 
 	go func() {
-		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 	dur := durationpb.Duration{
@@ -532,7 +532,7 @@ func TestWatchEmptyDirectives(t *testing.T) {
 	rolloutCallback := make(chan *GenericCallback)
 	appCallback := make(chan *GenericCallback)
 	go func() {
-		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 
@@ -610,7 +610,7 @@ func TestWatchStopReportingDirective(t *testing.T) {
 
 	// start watch
 	go func() {
-		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 
@@ -711,7 +711,7 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 
 	// start the watch
 	go func() {
-		err := a.watch(ctx, ts.URL, diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, ts.URL, diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 
@@ -923,7 +923,7 @@ func TestWatchWithSnapshot(t *testing.T) {
 
 	// start the watch
 	go func() {
-		err := a.watch(ctx, ts.URL, diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, ts.URL, diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 
@@ -1067,7 +1067,7 @@ func TestWatchEmptySnapshot(t *testing.T) {
 	rolloutCallback := make(chan *GenericCallback)
 	appCallback := make(chan *GenericCallback)
 	go func() {
-		err := a.watch(ctx, ts.URL, diagnosticsURL, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, ts.URL, diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
 		watchDone <- err
 	}()
 	select {
