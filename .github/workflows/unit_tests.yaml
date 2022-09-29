@@ -18,7 +18,7 @@ jobs:
         with:
           go-version: "1.18"
       - name: Run Tests
-        if: steps.get_last_run.outputs.passed != "success"
+        if: steps.get_last_run.outputs.passed != 'success'
         run: make unit-test
       - name: Report Success
         run: echo "::set-output name=run_result::success" > run_result
