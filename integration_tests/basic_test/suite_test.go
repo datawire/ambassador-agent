@@ -102,9 +102,11 @@ func (s *BasicTestSuite) installHelmChart(config *rest.Config) (uninstall func()
 
 	vals := map[string]any{}
 	if 0 < len(s.namespaces) {
-		vals["rbac.namespaces"] = s.namespaces
+		vals["rbac"] = map[string]any{
+			"namespaces": s.namespaces,
+		}
 	}
-	release, err := install.RunWithContext(s.ctx, chart, nil)
+	release, err := install.RunWithContext(s.ctx, chart, vals)
 	if err != nil {
 		return nil, err
 	}
