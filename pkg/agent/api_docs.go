@@ -269,11 +269,13 @@ func newOpenAPI(ctx context.Context, docBytes []byte, baseURL string, prefix str
 		dlog.Debugf(ctx, "could not parse URL %q", baseURL)
 	} else {
 		if prefix != "" {
+			prefixTrim := strings.TrimRight(prefix, "/")
+			existingPrefixTrim := strings.TrimRight(existingPrefix, "/")
 
 			if existingPrefix != "" &&
 				keepExistingPrefix &&
-				strings.TrimRight(prefix, "/") != strings.TrimRight(existingPrefix, "/") &&
-				!strings.HasSuffix(strings.TrimRight(prefix, "/"), strings.TrimRight(existingPrefix, "/")) {
+				prefixTrim != existingPrefixTrim &&
+				!strings.HasSuffix(prefixTrim, existingPrefixTrim) {
 
 				base.Path = path.Join(base.Path, prefix, existingPrefix)
 			} else {
