@@ -1,4 +1,4 @@
-package basic_test
+package cloudtoken_test
 
 import (
 	"bufio"
@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (s *BasicTestSuite) TestCloudToken() {
+func (s *CloudTokenTestSuite) TestCloudToken() {
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.name + "-cloud-token",
