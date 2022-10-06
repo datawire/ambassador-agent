@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/datawire/ambassador-agent/pkg/agent"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -21,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"github.com/datawire/ambassador-agent/pkg/agent"
 	"github.com/datawire/dlib/dgroup"
 	"github.com/datawire/dlib/dlog"
 )
