@@ -338,7 +338,7 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 		if (secret.GetName() == a.agentCloudResourceConfigName || strings.HasSuffix(secret.GetName(), cloudConnectTokenDefaultSuffix)) && secret.GetNamespace() == a.agentNamespace {
 			connTokenBytes, ok := secret.Data[cloudConnectTokenKey]
 			connToken := string(connTokenBytes)
-			dlog.Infof(ctx, "Setting cloud connect token from secret")
+			dlog.Infof(ctx, "Setting cloud connect token from secret: %s", secret.GetName())
 			a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
 			resetComm(a.ambassadorAPIKey, prevKey, a)
 			return
@@ -352,7 +352,7 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 		if (cm.GetName() == a.agentCloudResourceConfigName || strings.HasSuffix(cm.GetName(), cloudConnectTokenDefaultSuffix)) && cm.GetNamespace() == a.agentNamespace {
 			connTokenBytes, ok := cm.Data[cloudConnectTokenKey]
 			connToken := string(connTokenBytes)
-			dlog.Infof(ctx, "Setting cloud connect token from configmap")
+			dlog.Infof(ctx, "Setting cloud connect token from configmap: %s", cm.GetName())
 			a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
 			resetComm(a.ambassadorAPIKey, prevKey, a)
 			return
