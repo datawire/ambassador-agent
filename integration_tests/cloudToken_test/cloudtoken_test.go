@@ -1,10 +1,11 @@
 package cloudtoken_test
 
 import (
-	"bufio"
+	"context"
 	"strings"
 	"time"
 
+	itest "github.com/datawire/ambassador-agent/integration_tests"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -36,35 +37,16 @@ func (s *CloudTokenTestSuite) TestCloudToken() {
 	s.Require().NotEmpty(pods.Items)
 	agentPod := pods.Items[0]
 
-	logLines := make(chan string, 1)
-	go func() {
-		logReader, err := s.clientset.CoreV1().Pods(s.namespace).
-			GetLogs(agentPod.GetName(), &corev1.PodLogOptions{
-				Follow: true,
-			}).
-			Stream(s.ctx)
-		s.Require().NoError(err)
-		scanner := bufio.NewScanner(logReader)
-		scanner.Split(bufio.ScanLines)
-		for scanner.Scan() {
-			logLines <- scanner.Text()
-		}
-	}()
+	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	defer cancel()
 
-	var (
-		timeout = time.After(30 * time.Second)
-		succ    bool
-	)
+	logLines, err := itest.NewPodLogChan(ctx, s.clientset, agentPod.Name, s.namespace, true)
+	s.Require().NoError(err)
 
-OUTER:
-	for {
-		select {
-		case <-timeout:
-			break OUTER
-		case line := <-logLines:
-			if succ = strings.Contains(line, "Setting cloud connect token from secret"); succ {
-				break OUTER
-			}
+	var succ bool
+	for line := range logLines {
+		if succ = strings.Contains(line, "Setting cloud connect token from secret"); succ {
+			break
 		}
 	}
 	s.True(succ)

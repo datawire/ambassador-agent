@@ -19,7 +19,7 @@ type InstallationConfig struct {
 	Log        action.DebugLog
 }
 
-func InstallHelmChart(ctx context.Context, config InstallationConfig) (uninstall func() error, err error) {
+func InstallHelmChart(ctx context.Context, config InstallationConfig) (CleanupFunc, error) {
 	var (
 		helmCliConfig = genericclioptions.NewConfigFlags(false)
 		actionConfig  action.Configuration
@@ -32,7 +32,7 @@ func InstallHelmChart(ctx context.Context, config InstallationConfig) (uninstall
 	helmCliConfig.CAFile = &restConf.CAFile
 	helmCliConfig.Namespace = &config.Namespace
 
-	err = actionConfig.Init(helmCliConfig, config.Namespace, "", config.Log)
+	err := actionConfig.Init(helmCliConfig, config.Namespace, "", config.Log)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func InstallHelmChart(ctx context.Context, config InstallationConfig) (uninstall
 		return nil, err
 	}
 
-	return func() error {
+	return func(_ context.Context) error {
 		_, err := action.NewUninstall(&actionConfig).Run(release.Name)
 		return err
 	}, nil

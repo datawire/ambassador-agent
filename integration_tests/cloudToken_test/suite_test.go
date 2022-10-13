@@ -29,7 +29,7 @@ type CloudTokenTestSuite struct {
 	namespace string
 	name      string
 
-	uninstallHelmChart func() error
+	uninstallHelmChart itest.CleanupFunc
 }
 
 func Test_Run(t *testing.T) {
@@ -71,7 +71,7 @@ func (s *CloudTokenTestSuite) SetupSuite() {
 }
 
 func (s *CloudTokenTestSuite) TearDownSuite() {
-	err := s.uninstallHelmChart()
+	err := s.uninstallHelmChart(s.ctx)
 	s.Require().NoError(err)
 
 	s.clientset.CoordinationV1().Leases(s.namespace).
