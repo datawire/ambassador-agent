@@ -19,9 +19,11 @@ type CoreWatchers struct {
 	deployWatchers   k8sapi.WatcherGroup[*kates.Deployment]
 	podWatchers      k8sapi.WatcherGroup[*kates.Pod]
 	endpointWatchers k8sapi.WatcherGroup[*kates.Endpoints]
+
+	om ObjectModifier
 }
 
-func NewCoreWatchers(clientset *kubernetes.Clientset, namespaces []string) *CoreWatchers {
+func NewCoreWatchers(clientset *kubernetes.Clientset, namespaces []string, om ObjectModifier) *CoreWatchers {
 	appClient := clientset.AppsV1().RESTClient()
 	coreClient := clientset.CoreV1().RESTClient()
 
@@ -35,6 +37,7 @@ func NewCoreWatchers(clientset *kubernetes.Clientset, namespaces []string) *Core
 		podWatchers:      k8sapi.NewWatcherGroup[*kates.Pod](),
 		endpointWatchers: k8sapi.NewWatcherGroup[*kates.Endpoints](),
 		cond:             cond,
+		om:               om,
 	}
 
 	// TODO equals func to prevent over-broadcasting
@@ -58,6 +61,9 @@ func (w *CoreWatchers) loadPods(ctx context.Context, svcs []*kates.Service) []*k
 	fpods := make([]*kates.Pod, 0)
 	for _, pod := range pods {
 		if allowedNamespace(pod.GetNamespace()) && pod.Status.Phase != v1.PodSucceeded {
+			if w.om != nil {
+				w.om(pod)
+			}
 			fpods = append(fpods, pod)
 		}
 	}
@@ -75,6 +81,9 @@ func (w *CoreWatchers) loadCmaps(ctx context.Context) []*kates.ConfigMap {
 	fcmaps := make([]*kates.ConfigMap, 0)
 	for _, cmap := range cmaps {
 		if allowedNamespace(cmap.GetNamespace()) {
+			if w.om != nil {
+				w.om(cmap)
+			}
 			fcmaps = append(fcmaps, cmap)
 		}
 	}
@@ -92,6 +101,9 @@ func (w *CoreWatchers) loadDeploys(ctx context.Context) []*kates.Deployment {
 	fdeploys := make([]*kates.Deployment, 0)
 	for _, deploy := range deploys {
 		if allowedNamespace(deploy.GetNamespace()) {
+			if w.om != nil {
+				w.om(deploy)
+			}
 			fdeploys = append(fdeploys, deploy)
 		}
 	}
@@ -109,6 +121,9 @@ func (w *CoreWatchers) loadEndpoints(ctx context.Context) []*kates.Endpoints {
 	fendpts := make([]*kates.Endpoints, 0)
 	for _, endpt := range endpts {
 		if allowedNamespace(endpt.GetNamespace()) {
+			if w.om != nil {
+				w.om(endpt)
+			}
 			fendpts = append(fendpts, endpt)
 		}
 	}
