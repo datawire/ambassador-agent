@@ -56,6 +56,11 @@ func (w *FallbackWatchers) LoadSnapshot(ctx context.Context, snapshot *snapshotT
 	if snapshot.Kubernetes.Services, err = w.serviceWatchers.List(ctx); err != nil {
 		dlog.Errorf(ctx, "Unable to find services: %v", err)
 	}
+	if w.om != nil {
+		for _, svc := range snapshot.Kubernetes.Services {
+			w.om(svc)
+		}
+	}
 	dlog.Debugf(ctx, "Found %d services", len(snapshot.Kubernetes.Services))
 	if ingresses, err := w.ingressWatchers.List(ctx); err != nil {
 		dlog.Errorf(ctx, "Unable to find ingresses: %v", err)
