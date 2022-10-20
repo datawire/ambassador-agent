@@ -221,10 +221,10 @@ func NewAgent(
 
 		// k8sapi watchers
 		clientset:         clientset,
-		coreWatchers:      watchers.NewCoreWatchers(clientset, namespacesToWatch, om),
+		coreWatchers:      watchers.NewCoreWatchers(clientset, namespacesToWatch, objectModifier),
 		configWatchers:    NewConfigWatchers(clientset, agentNamespace),
 		ambassadorWatcher: NewAmbassadorWatcher(clientset, agentNamespace),
-		fallbackWatcher:   watchers.NewFallbackWatcher(ctx, clientset, namespacesToWatch, om),
+		fallbackWatcher:   watchers.NewFallbackWatcher(ctx, clientset, namespacesToWatch, objectModifier),
 	}
 }
 
@@ -911,37 +911,61 @@ func MaxDuration(a, b time.Duration) time.Duration {
 	return b
 }
 
-func om(obj runtime.Object) {
+func objectModifier(obj runtime.Object) {
 	switch obj := obj.(type) {
 	case *corev1.Pod:
 		obj.Kind = "Pod"
 		obj.APIVersion = "v1"
+		obj.ManagedFields = nil
+
 		obj.TypeMeta.APIVersion = obj.APIVersion
 		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
 	case *corev1.ConfigMap:
 		obj.Kind = "ConfigMap"
 		obj.APIVersion = "v1"
+		obj.ManagedFields = nil
+
 		obj.TypeMeta.APIVersion = obj.APIVersion
 		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
 	case *corev1.Endpoints:
 		obj.Kind = "Endpoint"
 		obj.APIVersion = "v1"
+		obj.ManagedFields = nil
+
 		obj.TypeMeta.APIVersion = obj.APIVersion
 		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
 	case *appsv1.Deployment:
 		obj.Kind = "Deployment"
 		obj.APIVersion = "v1"
+		obj.ManagedFields = nil
+
 		obj.TypeMeta.APIVersion = obj.APIVersion
 		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
 	case *k8s_resource_types.Ingress:
 		obj.Kind = "Ingress"
 		obj.APIVersion = "extensions/v1beta1"
+		obj.ManagedFields = nil
+
 		obj.TypeMeta.APIVersion = obj.APIVersion
 		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
 	case *networkingv1.Ingress:
 		obj.Kind = "Ingress"
 		obj.APIVersion = "networking.k8s.io/v1"
+		obj.ManagedFields = nil
+
 		obj.TypeMeta.APIVersion = obj.APIVersion
 		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
 	}
 }
