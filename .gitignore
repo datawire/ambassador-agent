@@ -5,3 +5,6 @@
 build-output
 /tools/*
 !/tools/src/
+
+# Dependency directories
+vendor/
