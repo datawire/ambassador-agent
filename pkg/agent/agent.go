@@ -922,6 +922,15 @@ func objectModifier(obj runtime.Object) {
 		obj.TypeMeta.Kind = obj.Kind
 
 		obj.ObjectMeta.ManagedFields = nil
+	case *corev1.Service:
+		obj.Kind = "Service"
+		obj.APIVersion = "v1"
+		obj.ManagedFields = nil
+
+		obj.TypeMeta.APIVersion = obj.APIVersion
+		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
 	case *corev1.ConfigMap:
 		obj.Kind = "ConfigMap"
 		obj.APIVersion = "v1"
@@ -942,7 +951,7 @@ func objectModifier(obj runtime.Object) {
 		obj.ObjectMeta.ManagedFields = nil
 	case *appsv1.Deployment:
 		obj.Kind = "Deployment"
-		obj.APIVersion = "v1"
+		obj.APIVersion = "apps/v1"
 		obj.ManagedFields = nil
 
 		obj.TypeMeta.APIVersion = obj.APIVersion
