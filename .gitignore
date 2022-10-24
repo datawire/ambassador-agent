@@ -1,3 +1,10 @@
 *.yaml.o
 *.log
 **/.vscode
+
+build-output
+/tools/*
+!/tools/src/
+
+# Dependency directories
+vendor/
