@@ -20,11 +20,16 @@ import (
 	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
 	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
 	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 	"github.com/pkg/errors"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"k8s.io/client-go/kubernetes"
@@ -216,10 +221,10 @@ func NewAgent(
 
 		// k8sapi watchers
 		clientset:         clientset,
-		coreWatchers:      watchers.NewCoreWatchers(clientset, namespacesToWatch),
+		coreWatchers:      watchers.NewCoreWatchers(clientset, namespacesToWatch, objectModifier),
 		configWatchers:    NewConfigWatchers(clientset, agentNamespace),
 		ambassadorWatcher: NewAmbassadorWatcher(clientset, agentNamespace),
-		fallbackWatcher:   watchers.NewFallbackWatcher(ctx, clientset, namespacesToWatch),
+		fallbackWatcher:   watchers.NewFallbackWatcher(ctx, clientset, namespacesToWatch, objectModifier),
 	}
 }
 
@@ -904,4 +909,72 @@ func MaxDuration(a, b time.Duration) time.Duration {
 		return a
 	}
 	return b
+}
+
+func objectModifier(obj runtime.Object) {
+	switch obj := obj.(type) {
+	case *corev1.Pod:
+		obj.Kind = "Pod"
+		obj.APIVersion = "v1"
+		obj.ManagedFields = nil
+
+		obj.TypeMeta.APIVersion = obj.APIVersion
+		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
+	case *corev1.Service:
+		obj.Kind = "Service"
+		obj.APIVersion = "v1"
+		obj.ManagedFields = nil
+
+		obj.TypeMeta.APIVersion = obj.APIVersion
+		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
+	case *corev1.ConfigMap:
+		obj.Kind = "ConfigMap"
+		obj.APIVersion = "v1"
+		obj.ManagedFields = nil
+
+		obj.TypeMeta.APIVersion = obj.APIVersion
+		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
+	case *corev1.Endpoints:
+		obj.Kind = "Endpoint"
+		obj.APIVersion = "v1"
+		obj.ManagedFields = nil
+
+		obj.TypeMeta.APIVersion = obj.APIVersion
+		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
+	case *appsv1.Deployment:
+		obj.Kind = "Deployment"
+		obj.APIVersion = "apps/v1"
+		obj.ManagedFields = nil
+
+		obj.TypeMeta.APIVersion = obj.APIVersion
+		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
+	case *k8s_resource_types.Ingress:
+		obj.Kind = "Ingress"
+		obj.APIVersion = "extensions/v1beta1"
+		obj.ManagedFields = nil
+
+		obj.TypeMeta.APIVersion = obj.APIVersion
+		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
+	case *networkingv1.Ingress:
+		obj.Kind = "Ingress"
+		obj.APIVersion = "networking.k8s.io/v1"
+		obj.ManagedFields = nil
+
+		obj.TypeMeta.APIVersion = obj.APIVersion
+		obj.TypeMeta.Kind = obj.Kind
+
+		obj.ObjectMeta.ManagedFields = nil
+	}
 }

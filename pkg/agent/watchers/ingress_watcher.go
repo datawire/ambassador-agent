@@ -24,6 +24,7 @@ type ingressWatcher interface {
 
 type networkWatcher struct {
 	watcher k8sapi.WatcherGroup[*networking.Ingress]
+	om      ObjectModifier
 }
 
 func (n *networkWatcher) EnsureStarted(ctx context.Context, cb func(bool)) {
@@ -125,6 +126,9 @@ func (n *networkWatcher) List(ctx context.Context) ([]*k8s_resource_types.Ingres
 			Status:     n.convertStatus(ing),
 			Spec:       n.convertSpec(ing),
 		}
+		if n.om != nil {
+			n.om(conv)
+		}
 		result = append(result, conv)
 	}
 	return result, nil
@@ -149,14 +153,14 @@ func isNetworkingAPIAvailable(ctx context.Context, clientset *kubernetes.Clients
 	return true
 }
 
-func getIngressWatcher(ctx context.Context, clientset *kubernetes.Clientset, namespaces []string, cond *sync.Cond) ingressWatcher {
+func getIngressWatcher(ctx context.Context, clientset *kubernetes.Clientset, namespaces []string, cond *sync.Cond, om ObjectModifier) ingressWatcher {
 	if isNetworkingAPIAvailable(ctx, clientset, namespaces[0]) {
 		netClient := clientset.NetworkingV1().RESTClient()
 		watcher := k8sapi.NewWatcherGroup[*networking.Ingress]()
 		for _, ns := range namespaces {
 			watcher.AddWatcher(k8sapi.NewWatcher("ingresses", ns, netClient, &networking.Ingress{}, cond, nil))
 		}
-		return &networkWatcher{watcher: watcher}
+		return &networkWatcher{watcher: watcher, om: om}
 	}
 	netClient := clientset.ExtensionsV1beta1().RESTClient()
 	watcher := k8sapi.NewWatcherGroup[*k8s_resource_types.Ingress]()

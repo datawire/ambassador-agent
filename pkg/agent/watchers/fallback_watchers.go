@@ -15,9 +15,11 @@ type FallbackWatchers struct {
 	cond            *sync.Cond
 	serviceWatchers k8sapi.WatcherGroup[*kates.Service]
 	ingressWatchers ingressWatcher
+
+	om ObjectModifier
 }
 
-func NewFallbackWatcher(ctx context.Context, clientset *kubernetes.Clientset, namespaces []string) *FallbackWatchers {
+func NewFallbackWatcher(ctx context.Context, clientset *kubernetes.Clientset, namespaces []string, om ObjectModifier) *FallbackWatchers {
 	coreClient := clientset.CoreV1().RESTClient()
 
 	cond := &sync.Cond{
@@ -27,8 +29,9 @@ func NewFallbackWatcher(ctx context.Context, clientset *kubernetes.Clientset, na
 	// TODO equals func to prevent over-broadcasting
 	siWatcher := &FallbackWatchers{
 		serviceWatchers: k8sapi.NewWatcherGroup[*kates.Service](),
-		ingressWatchers: getIngressWatcher(ctx, clientset, namespaces, cond),
+		ingressWatchers: getIngressWatcher(ctx, clientset, namespaces, cond, om),
 		cond:            cond,
+		om:              om,
 	}
 
 	for _, ns := range namespaces {
@@ -53,12 +56,20 @@ func (w *FallbackWatchers) LoadSnapshot(ctx context.Context, snapshot *snapshotT
 	if snapshot.Kubernetes.Services, err = w.serviceWatchers.List(ctx); err != nil {
 		dlog.Errorf(ctx, "Unable to find services: %v", err)
 	}
+	if w.om != nil {
+		for _, svc := range snapshot.Kubernetes.Services {
+			w.om(svc)
+		}
+	}
 	dlog.Debugf(ctx, "Found %d services", len(snapshot.Kubernetes.Services))
 	if ingresses, err := w.ingressWatchers.List(ctx); err != nil {
 		dlog.Errorf(ctx, "Unable to find ingresses: %v", err)
 	} else {
 		snapshot.Kubernetes.Ingresses = []*snapshotTypes.Ingress{}
 		for _, ing := range ingresses {
+			if w.om != nil {
+				w.om(ing)
+			}
 			snapshot.Kubernetes.Ingresses = append(snapshot.Kubernetes.Ingresses, &snapshotTypes.Ingress{Ingress: *ing})
 		}
 	}

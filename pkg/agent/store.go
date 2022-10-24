@@ -7,26 +7,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// CoreSnapshot reflects the current state of the kates accumulators for the given
-// resource types.
-// DEPRECEATED
-type CoreSnapshot struct {
-	Pods        []*kates.Pod
-	ConfigMaps  []*kates.ConfigMap
-	Deployments []*kates.Deployment
-	Endpoints   []*kates.Endpoints
-}
-
-// coreStore is used to store core k8s resources that are not handled by default
-// by Ambassador's snapshot.
-// DEPRECEATED
-type coreStore struct {
-	podStore        *podStore
-	configMapStore  *configMapStore
-	deploymentStore *deploymentStore
-	endpointStore   *endpointStore
-}
-
 type configMapStore struct {
 	sotw map[string]*kates.ConfigMap
 }
@@ -41,17 +21,6 @@ type podStore struct {
 
 type endpointStore struct {
 	sotw map[string]*kates.Endpoints
-}
-
-// NewCoreStore will create a new coreStore with the given coreSnapshot.
-// DEPRECEATED
-func NewCoreStore(snapshot *CoreSnapshot) *coreStore {
-	return &coreStore{
-		podStore:        NewPodStore(snapshot.Pods),
-		configMapStore:  NewConfigMapStore(snapshot.ConfigMaps),
-		deploymentStore: NewDeploymentStore(snapshot.Deployments),
-		endpointStore:   NewEndpointsStore(snapshot.Endpoints),
-	}
 }
 
 // NewPodStore will create a new podStore filtering out undesired resources.
