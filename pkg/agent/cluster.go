@@ -15,10 +15,11 @@ import (
 func GetClusterID(ctx context.Context, client *kubernetes.Clientset, nsName string) string {
 	clusterID := getEnvWithDefault("AMBASSADOR_CLUSTER_ID", getEnvWithDefault("AMBASSADOR_SCOUT_ID", ""))
 	if clusterID != "" {
+		dlog.Infof(ctx, "Using cluster ID from env %s", clusterID)
 		return clusterID
 	}
 
-	dlog.Infof(ctx, "Fetching cluster ID from %s namespace", nsName)
+	dlog.Infof(ctx, "Fetching cluster ID from namespace %s", nsName)
 
 	rootID := "00000000-0000-0000-0000-000000000000"
 
@@ -29,7 +30,10 @@ func GetClusterID(ctx context.Context, client *kubernetes.Clientset, nsName stri
 
 	dlog.Infof(ctx, "Using root ID %s", rootID)
 	dlog.Debugf(ctx, "Namespace looks like %+v", ns)
-	return clusterIDFromRootID(clusterID)
+	clusterID = clusterIDFromRootID(rootID)
+
+	dlog.Infof(ctx, "Using computed cluster ID %s", clusterID)
+	return clusterID
 }
 
 func clusterIDFromRootID(rootID string) string {
