@@ -40,8 +40,8 @@ import (
 
 const defaultMinReportPeriod = 30 * time.Second
 const (
-	cloudConnectTokenKey             = "CLOUD_CONNECT_TOKEN"
-	cloudConnectTokenDefaultResource = "ambassador-agent-cloud-token"
+	cloudConnectTokenKey           = "CLOUD_CONNECT_TOKEN"
+	cloudConnectTokenDefaultSuffix = "agent-cloud-token"
 )
 
 type Comm interface {
@@ -210,7 +210,7 @@ func NewAgent(
 		ambassadorAPIKeyEnvVarValue:  os.Getenv(cloudConnectTokenKey),
 		connAddress:                  os.Getenv("RPC_CONNECTION_ADDRESS"),
 		agentNamespace:               agentNamespace,
-		agentCloudResourceConfigName: getEnvWithDefault("AGENT_CONFIG_RESOURCE_NAME", cloudConnectTokenDefaultResource),
+		agentCloudResourceConfigName: os.Getenv("AGENT_CONFIG_RESOURCE_NAME"),
 		directiveHandler:             directiveHandler,
 		reportRunning:                atomicBool{value: false},
 		agentWatchFieldSelector:      getEnvWithDefault("AGENT_WATCH_FIELD_SELECTOR", "metadata.namespace!=kube-system"),
@@ -340,10 +340,10 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	// there _should_ only be one secret here, but we're going to loop and check that the object
 	// meta matches what we expect
 	for _, secret := range secrets {
-		if (secret.GetName() == a.agentCloudResourceConfigName || secret.GetName() == cloudConnectTokenDefaultResource) && secret.GetNamespace() == a.agentNamespace {
+		if secret.GetName() == a.agentCloudResourceConfigName || strings.HasSuffix(secret.GetName(), cloudConnectTokenDefaultSuffix) {
 			connTokenBytes, ok := secret.Data[cloudConnectTokenKey]
 			connToken := string(connTokenBytes)
-			dlog.Infof(ctx, "Setting cloud connect token from secret")
+			dlog.Infof(ctx, "Setting cloud connect token from secret: %s", secret.GetName())
 			a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
 			resetComm(a.ambassadorAPIKey, prevKey, a)
 			return
@@ -354,10 +354,10 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	// there _should_ only be one config here, but we're going to loop and check that the object
 	// meta matches what we expect
 	for _, cm := range cmaps {
-		if (cm.GetName() == a.agentCloudResourceConfigName || cm.GetName() == cloudConnectTokenDefaultResource) && cm.GetNamespace() == a.agentNamespace {
+		if cm.GetName() == a.agentCloudResourceConfigName || strings.HasSuffix(cm.GetName(), cloudConnectTokenDefaultSuffix) {
 			connTokenBytes, ok := cm.Data[cloudConnectTokenKey]
 			connToken := string(connTokenBytes)
-			dlog.Infof(ctx, "Setting cloud connect token from configmap")
+			dlog.Infof(ctx, "Setting cloud connect token from configmap: %s", cm.GetName())
 			a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
 			resetComm(a.ambassadorAPIKey, prevKey, a)
 			return
