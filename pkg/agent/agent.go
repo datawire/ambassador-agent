@@ -302,13 +302,6 @@ func parseAmbassadorAdminHost(rawurl string) (string, error) {
 
 }
 
-func getAPIKeyValue(configValue string, configHadValue bool) string {
-	if configHadValue {
-		return configValue
-	}
-	return ""
-}
-
 func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
 	secrets, err := a.configWatchers.secretWatcher.List(ctx)
 	if err != nil {
@@ -342,9 +335,11 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	for _, secret := range secrets {
 		if secret.GetName() == a.agentCloudResourceConfigName || strings.HasSuffix(secret.GetName(), cloudConnectTokenDefaultSuffix) {
 			connTokenBytes, ok := secret.Data[cloudConnectTokenKey]
-			connToken := string(connTokenBytes)
+			if !ok {
+				continue
+			}
+			a.ambassadorAPIKey = string(connTokenBytes)
 			dlog.Infof(ctx, "Setting cloud connect token from secret: %s", secret.GetName())
-			a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
 			resetComm(a.ambassadorAPIKey, prevKey, a)
 			return
 		}
@@ -356,9 +351,11 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	for _, cm := range cmaps {
 		if cm.GetName() == a.agentCloudResourceConfigName || strings.HasSuffix(cm.GetName(), cloudConnectTokenDefaultSuffix) {
 			connTokenBytes, ok := cm.Data[cloudConnectTokenKey]
-			connToken := string(connTokenBytes)
+			if !ok {
+				continue
+			}
+			a.ambassadorAPIKey = string(connTokenBytes)
 			dlog.Infof(ctx, "Setting cloud connect token from configmap: %s", cm.GetName())
-			a.ambassadorAPIKey = getAPIKeyValue(connToken, ok)
 			resetComm(a.ambassadorAPIKey, prevKey, a)
 			return
 		}
