@@ -388,11 +388,11 @@ func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) e
 		return err
 	}
 
-	a.waitForAPIKey(ctx)
+	configCh := k8sapi.Subscribe(ctx, a.configWatchers.cond)
+	a.waitForAPIKey(ctx, configCh)
+
 	a.coreWatchers.EnsureStarted(ctx)
 	a.handleAmbassadorEndpointChange(ctx, ambHost)
-
-	configCh := k8sapi.Subscribe(ctx, a.configWatchers.cond)
 	ambCh := k8sapi.Subscribe(ctx, a.ambassadorWatcher.cond)
 
 	// The following is kates that im not sure we can replicate with k8sapi as it currently exists
@@ -412,10 +412,7 @@ func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) e
 	return a.watch(ctx, snapshotURL, diagnosticsURL, ambHost, configCh, ambCh, rolloutCallback, applicationCallback)
 }
 
-func (a *Agent) waitForAPIKey(ctx context.Context) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	ch := k8sapi.Subscribe(ctx, a.configWatchers.cond)
+func (a *Agent) waitForAPIKey(ctx context.Context, ch <-chan struct{}) {
 	a.handleAPIKeyConfigChange(ctx)
 
 	// wait until the user installs an api key
