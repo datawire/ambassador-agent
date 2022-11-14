@@ -146,7 +146,7 @@ following Free and Open Source software:
     helm.sh/helm/v3                                   v3.10.0                               Apache License 2.0
     k8s.io/api                                        v0.25.2                               Apache License 2.0
     k8s.io/apiextensions-apiserver                    v0.25.0                               Apache License 2.0
-    k8s.io/apimachinery                               v0.25.3                               3-clause BSD license, Apache License 2.0
+    k8s.io/apimachinery                               v0.25.4                               3-clause BSD license, Apache License 2.0
     k8s.io/apiserver                                  v0.25.0                               Apache License 2.0
     k8s.io/cli-runtime                                v0.25.2                               Apache License 2.0
     k8s.io/client-go                                  v0.25.2                               3-clause BSD license, Apache License 2.0
