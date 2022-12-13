@@ -4,8 +4,7 @@ metadata:
   name: {{ include "ambassador-agent.fullname" . }}
   namespace: {{ include "ambassador-agent.namespace" . }}
   labels:
-    app.kubernetes.io/name: {{ include "ambassador-agent.name" . }}-agent
-    app.kubernetes.io/part-of: {{ .Release.Name }}
+    app.kubernetes.io/name: {{ include "ambassador-agent.name" . }}
     helm.sh/chart: {{ include "ambassador-agent.chart" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
