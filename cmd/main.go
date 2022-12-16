@@ -28,8 +28,8 @@ import (
 // internal k8s service
 const (
 	AdminDiagnosticsPort     = 8877
-	DefaultSnapshotURLFmt    = "http://edge-stack-admin:%d/snapshot-external"
-	DefaultDiagnosticsURLFmt = "http://edge-stack-admin:%d/ambassador/v0/diag/?json=true"
+	DefaultSnapshotURLFmt    = "http://ambassador-admin:%d/snapshot-external"
+	DefaultDiagnosticsURLFmt = "http://ambassador-admin:%d/ambassador/v0/diag/?json=true"
 
 	ExternalSnapshotPort = 8005
 
