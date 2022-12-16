@@ -28,8 +28,8 @@ import (
 // internal k8s service
 const (
 	AdminDiagnosticsPort     = 8877
-	DefaultSnapshotURLFmt    = "http://ambassador-admin:%d/snapshot-external"
-	DefaultDiagnosticsURLFmt = "http://ambassador-admin:%d/ambassador/v0/diag/?json=true"
+	DefaultSnapshotURLFmt    = "http://edge-stack-admin:%d/snapshot-external"
+	DefaultDiagnosticsURLFmt = "http://edge-stack-admin:%d/ambassador/v0/diag/?json=true"
 
 	ExternalSnapshotPort = 8005
 
@@ -79,6 +79,10 @@ func main() {
 	grp.Go("metrics-server", func(ctx context.Context) error {
 		metricsServer := agent.NewMetricsServer(ambAgent.MetricsRelayHandler)
 		return metricsServer.Serve(ctx, metricsListener)
+	})
+
+	grp.Go("metrics-reporter", func(ctx context.Context) error {
+		return ambAgent.MetricsReporter(ctx)
 	})
 
 	// use a Go context so we can tell the leaderelection code when we

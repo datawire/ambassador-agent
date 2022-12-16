@@ -45,7 +45,6 @@ func agentMetricsSetupTest() (*MockClient, *Agent) {
 	clientMock := &MockClient{}
 
 	stubbedAgent := &Agent{
-		metricsBackoffUntil: time.Time{},
 		comm: &RPCComm{
 			client: clientMock,
 		},
@@ -73,33 +72,12 @@ func TestMetricsRelayHandler(t *testing.T) {
 			// ignored since time to report.
 			EnvoyMetrics: []*io_prometheus_client.MetricFamily{ignoredMetric, acceptedMetric},
 		})
+		stubbedAgent.ReportMetrics(ctx)
 
 		//then
 		assert.Equal(t, []*agent.StreamMetricsMessage{{
 			EnvoyMetrics: []*io_prometheus_client.MetricFamily{acceptedMetric},
 		}}, clientMock.SentMetrics, "metrics should be propagated to cloud")
-	})
-	t.Run("will not relay the metrics since it is in cool down period.", func(t *testing.T) {
-		//given
-		clientMock, stubbedAgent := agentMetricsSetupTest()
-		ctx := peer.NewContext(dlog.NewTestContext(t, true), &peer.Peer{
-			Addr: &net.IPAddr{
-				IP: net.ParseIP("192.168.0.1"),
-			},
-		})
-		stubbedAgent.metricsBackoffUntil = time.Now().Add(defaultMinReportPeriod)
-
-		//when
-		stubbedAgent.MetricsRelayHandler(ctx, &envoyMetrics.StreamMetricsMessage{
-			Identifier:   nil,
-			EnvoyMetrics: []*io_prometheus_client.MetricFamily{acceptedMetric},
-		})
-
-		//then
-		assert.Equal(t, stubbedAgent.aggregatedMetrics["192.168.0.1"],
-			[]*io_prometheus_client.MetricFamily{acceptedMetric},
-			"metrics should be added to the stack")
-		assert.Equal(t, 0, len(clientMock.SentMetrics), "nothing send to cloud")
 	})
 	t.Run("peer IP is not available", func(t *testing.T) {
 		// given
@@ -116,7 +94,7 @@ func TestMetricsRelayHandler(t *testing.T) {
 		assert.Equal(t, 0, len(stubbedAgent.aggregatedMetrics), "no metrics")
 		assert.Equal(t, 0, len(clientMock.SentMetrics), "nothing send to cloud")
 	})
-	t.Run("not metrics available in aggregatedMetrics", func(t *testing.T) {
+	t.Run("no metrics available in aggregatedMetrics", func(t *testing.T) {
 		// given
 		clientMock, stubbedAgent := agentMetricsSetupTest()
 		ctx := peer.NewContext(dlog.NewTestContext(t, true), &peer.Peer{

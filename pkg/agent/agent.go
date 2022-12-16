@@ -122,9 +122,6 @@ type Agent struct {
 
 	// A mutex related to the metrics endpoint action, to avoid concurrent (and useless) pushes.
 	metricsRelayMutex sync.Mutex
-	// Timestamp to keep in memory to Prevent from making too many requests to the Ambassador
-	// Cloud API.
-	metricsBackoffUntil time.Time
 
 	// Used to accumulate metrics for a same timestamp before pushing them to the cloud.
 	aggregatedMetrics map[string][]*io_prometheus_client.MetricFamily
@@ -214,7 +211,6 @@ func NewAgent(
 		directiveHandler:             directiveHandler,
 		reportRunning:                atomicBool{value: false},
 		agentWatchFieldSelector:      getEnvWithDefault("AGENT_WATCH_FIELD_SELECTOR", "metadata.namespace!=kube-system"),
-		metricsBackoffUntil:          time.Now().Add(defaultMinReportPeriod),
 		rpcExtraHeaders:              rpcExtraHeaders,
 		aggregatedMetrics:            map[string][]*io_prometheus_client.MetricFamily{},
 		namespacesToWatch:            namespacesToWatch,
@@ -320,14 +316,16 @@ func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
 // from that. If neither a secret or a configmap exists, use the value from the environment that we
 // stored on startup.
 func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret, cmaps []*kates.ConfigMap) {
-	// reset the connection so we use a new api key (or break the connection if the api key was
+	// if the key is new, reset the connection so we use a new api key (or break the connection if the api key was
 	// unset). The agent will reset the connection the next time it tries to send a report
-	resetComm := func(newKey string, oldKey string, a *Agent) {
-		if newKey != oldKey {
+	maybeResetComm := func(newKey string, a *Agent) {
+		if newKey != a.ambassadorAPIKey {
+			a.ambassadorAPIKeyMutex.Lock()
+			defer a.ambassadorAPIKeyMutex.Unlock()
+			a.ambassadorAPIKey = newKey
 			a.ClearComm()
 		}
 	}
-	prevKey := a.ambassadorAPIKey
 	// first, check if we have a secret, since we want that value to take if we
 	// can get it.
 	// there _should_ only be one secret here, but we're going to loop and check that the object
@@ -338,9 +336,8 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 			if !ok {
 				continue
 			}
-			a.ambassadorAPIKey = string(connTokenBytes)
 			dlog.Infof(ctx, "Setting cloud connect token from secret: %s", secret.GetName())
-			resetComm(a.ambassadorAPIKey, prevKey, a)
+			maybeResetComm(string(connTokenBytes), a)
 			return
 		}
 	}
@@ -354,9 +351,8 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 			if !ok {
 				continue
 			}
-			a.ambassadorAPIKey = string(connTokenBytes)
 			dlog.Infof(ctx, "Setting cloud connect token from configmap: %s", cm.GetName())
-			resetComm(a.ambassadorAPIKey, prevKey, a)
+			maybeResetComm(string(connTokenBytes), a)
 			return
 		}
 	}
@@ -367,13 +363,11 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	// likely empty, so in that case, that is basically equivelant to
 	// turning the agent "off")
 	dlog.Infof(ctx, "Setting cloud connect token from environment")
-	a.ambassadorAPIKeyMutex.Lock()
-	defer a.ambassadorAPIKeyMutex.Unlock()
-	a.ambassadorAPIKey = a.ambassadorAPIKeyEnvVarValue
 	if a.ambassadorAPIKeyEnvVarValue == "" {
 		dlog.Errorf(ctx, "Unable to get cloud connect token. This agent will do nothing.")
 	}
-	resetComm(a.ambassadorAPIKey, prevKey, a)
+	// always run maybeResetComm so that the agent can be turned "off"
+	maybeResetComm(a.ambassadorAPIKeyEnvVarValue, a)
 }
 
 // Watch is the work performed by the main goroutine for the Agent. It processes
@@ -529,7 +523,7 @@ func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context, ambassadorHo
 	if endpoints, err := a.ambassadorWatcher.endpointWatcher.List(ctx); err == nil {
 		for _, endpoint := range endpoints {
 			if endpoint.Name == target {
-				dlog.Info(ctx, "Emissary detected, using emissary snapshots.")
+				dlog.Infof(ctx, "%s detected, using emissary snapshots.", target)
 				a.emissaryPresent = true
 				a.fallbackWatcher.Cancel()
 				return
@@ -538,7 +532,7 @@ func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context, ambassadorHo
 	} else {
 		dlog.Warnf(ctx, "Unable to watch for ambassador-admin service, will act as though standalone: %v", err)
 	}
-	dlog.Info(ctx, "Emissary not detected, creating own snapshots.")
+	dlog.Infof(ctx, "%s not detected, creating own snapshots.", target)
 	a.emissaryPresent = false
 	a.fallbackWatcher.EnsureStarted(ctx)
 }
@@ -816,27 +810,62 @@ func (a *Agent) ProcessDiagnostics(ctx context.Context, diagnostics *diagnostics
 
 var allowedMetricsSuffixes = []string{"upstream_rq_total", "upstream_rq_time", "upstream_rq_5xx"}
 
+// MetricsReporter is an interval using time.After,
+// sending and resetting resetting a.aggregatedMetrics
+func (a *Agent) MetricsReporter(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			err := ctx.Err()
+			dlog.Errorf(ctx, "Stopping metrics reporter: %s", err)
+			return err
+		case <-time.After(defaultMinReportPeriod):
+			a.ReportMetrics(ctx)
+		}
+	}
+}
+
+func (a *Agent) ReportMetrics(ctx context.Context) {
+	// TODO make thread-safe
+	if a.comm != nil && !a.reportingStopped {
+
+		a.metricsRelayMutex.Lock()
+		aggregatedMetrics := a.aggregatedMetrics
+		a.aggregatedMetrics = make(map[string][]*io_prometheus_client.MetricFamily)
+		a.metricsRelayMutex.Unlock()
+
+		outMessage := &agent.StreamMetricsMessage{
+			Identity:     a.agentID,
+			EnvoyMetrics: []*io_prometheus_client.MetricFamily{},
+		}
+
+		for _, instanceMetrics := range aggregatedMetrics {
+			outMessage.EnvoyMetrics = append(outMessage.EnvoyMetrics, instanceMetrics...)
+		}
+
+		if relayedMetricCount := len(outMessage.GetEnvoyMetrics()); relayedMetricCount > 0 {
+			dlog.Debugf(ctx, "Relaying %d metric(s)", relayedMetricCount)
+			a.ambassadorAPIKeyMutex.Lock()
+			apikey := a.ambassadorAPIKey
+			a.ambassadorAPIKeyMutex.Unlock()
+
+			if err := a.comm.StreamMetrics(ctx, outMessage, apikey); err != nil {
+				dlog.Errorf(ctx, "error streaming metric(s): %+v", err)
+			}
+		}
+	}
+}
+
 // MetricsRelayHandler is invoked as a callback when the agent receive metrics from Envoy (sink).
+// It stores metrics in a.aggregatedMetrics
 func (a *Agent) MetricsRelayHandler(
 	ctx context.Context,
 	in *envoyMetrics.StreamMetricsMessage,
 ) {
-	metrics := in.GetEnvoyMetrics()
-
+	// TODO make thread-safe
 	if a.comm != nil && !a.reportingStopped {
-		p, ok := peer.FromContext(ctx)
-
-		if !ok {
-			dlog.Warnf(ctx, "peer not found in context")
-			return
-		}
-
-		a.ambassadorAPIKeyMutex.Lock()
-		apikey := a.ambassadorAPIKey
-		a.ambassadorAPIKeyMutex.Unlock()
-
+		metrics := in.GetEnvoyMetrics()
 		newMetrics := make([]*io_prometheus_client.MetricFamily, 0, len(metrics))
-
 		for _, metricFamily := range metrics {
 			for _, suffix := range allowedMetricsSuffixes {
 				if strings.HasSuffix(metricFamily.GetName(), suffix) {
@@ -846,45 +875,23 @@ func (a *Agent) MetricsRelayHandler(
 			}
 		}
 
-		instanceID := p.Addr.String()
-
-		a.metricsRelayMutex.Lock()
-		defer a.metricsRelayMutex.Unlock()
-		// Collect metrics until next report.
-		if time.Now().Before(a.metricsBackoffUntil) {
-			dlog.Infof(ctx, "Append %d metric(s) to stack from %s",
-				len(newMetrics), instanceID,
-			)
-			a.aggregatedMetrics[instanceID] = newMetrics
+		p, ok := peer.FromContext(ctx)
+		if !ok {
+			dlog.Warnf(ctx, "peer not found in context")
 			return
 		}
+		instanceID := p.Addr.String()
 
-		// Otherwise, we reached a new batch of metric, send everything.
-		outMessage := &agent.StreamMetricsMessage{
-			Identity:     a.agentID,
-			EnvoyMetrics: []*io_prometheus_client.MetricFamily{},
+		// Store metrics. Overwrite old metrics from the same instance of edgisarry
+		dlog.Debugf(ctx, "Append %d metric(s) to stack from %s",
+			len(newMetrics), instanceID,
+		)
+
+		if len(newMetrics) > 0 {
+			a.metricsRelayMutex.Lock()
+			a.aggregatedMetrics[instanceID] = newMetrics
+			a.metricsRelayMutex.Unlock()
 		}
-
-		for key, instanceMetrics := range a.aggregatedMetrics {
-			outMessage.EnvoyMetrics = append(outMessage.EnvoyMetrics, instanceMetrics...)
-			delete(a.aggregatedMetrics, key)
-		}
-
-		if relayedMetricCount := len(outMessage.GetEnvoyMetrics()); relayedMetricCount > 0 {
-
-			dlog.Infof(ctx, "Relaying %d metric(s)", relayedMetricCount)
-
-			if err := a.comm.StreamMetrics(ctx, outMessage, apikey); err != nil {
-				dlog.Errorf(ctx, "error streaming metric(s): %+v", err)
-			}
-		}
-
-		// Configure next push.
-		a.metricsBackoffUntil = time.Now().Add(defaultMinReportPeriod)
-
-		dlog.Infof(ctx, "Next metrics relay scheduled for %s",
-			a.metricsBackoffUntil.UTC().String())
-
 	}
 }
 
