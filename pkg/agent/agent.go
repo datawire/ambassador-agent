@@ -319,9 +319,9 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	// if the key is new, reset the connection so we use a new api key (or break the connection if the api key was
 	// unset). The agent will reset the connection the next time it tries to send a report
 	maybeResetComm := func(newKey string, a *Agent) {
+		a.ambassadorAPIKeyMutex.Lock()
+		defer a.ambassadorAPIKeyMutex.Unlock()
 		if newKey != a.ambassadorAPIKey {
-			a.ambassadorAPIKeyMutex.Lock()
-			defer a.ambassadorAPIKeyMutex.Unlock()
 			a.ambassadorAPIKey = newKey
 			a.ClearComm()
 		}
