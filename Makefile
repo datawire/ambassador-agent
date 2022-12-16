@@ -69,3 +69,11 @@ itest: image-push
 .PHONY: unit-test
 unit-test:
 	go test -count=1 ./cmd/... ./pkg/...
+
+.PHONY: apply
+apply:
+	helm install ambassador-agent ./helm/ambassador-agent -n ambassador
+
+.PHONY: delete
+delete:
+	helm delete ambassador-agent -n ambassador
