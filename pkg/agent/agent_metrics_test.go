@@ -64,14 +64,14 @@ func TestMetricsRelayHandler(t *testing.T) {
 				IP: net.ParseIP("192.168.0.1"),
 			},
 		})
-		stubbedAgent.aggregatedMetrics["192.168.0.1"] = []*io_prometheus_client.MetricFamily{acceptedMetric}
 
 		//when
+		// store acceptedMetric and reject ignoredMetric
 		stubbedAgent.MetricsRelayHandler(ctx, &envoyMetrics.StreamMetricsMessage{
-			Identifier: nil,
-			// ignored since time to report.
+			Identifier:   nil,
 			EnvoyMetrics: []*io_prometheus_client.MetricFamily{ignoredMetric, acceptedMetric},
 		})
+		// report
 		stubbedAgent.ReportMetrics(ctx)
 
 		//then
