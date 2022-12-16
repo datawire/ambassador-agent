@@ -826,7 +826,7 @@ func (a *Agent) MetricsReporter(ctx context.Context) error {
 }
 
 func (a *Agent) ReportMetrics(ctx context.Context) {
-	// TODO make thread-safe
+	// TODO make comm thread-safe
 	if a.comm != nil && !a.reportingStopped {
 
 		a.metricsRelayMutex.Lock()
@@ -862,7 +862,6 @@ func (a *Agent) MetricsRelayHandler(
 	ctx context.Context,
 	in *envoyMetrics.StreamMetricsMessage,
 ) {
-	// TODO make thread-safe
 	if a.comm != nil && !a.reportingStopped {
 		metrics := in.GetEnvoyMetrics()
 		newMetrics := make([]*io_prometheus_client.MetricFamily, 0, len(metrics))
