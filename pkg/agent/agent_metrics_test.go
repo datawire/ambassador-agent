@@ -48,7 +48,8 @@ func agentMetricsSetupTest() (*MockClient, *Agent) {
 		comm: &RPCComm{
 			client: clientMock,
 		},
-		aggregatedMetrics: map[string][]*io_prometheus_client.MetricFamily{},
+		aggregatedMetrics:     map[string][]*io_prometheus_client.MetricFamily{},
+		metricsReportComplete: make(chan error),
 	}
 
 	return clientMock, stubbedAgent
@@ -73,6 +74,8 @@ func TestMetricsRelayHandler(t *testing.T) {
 		})
 		// report
 		stubbedAgent.ReportMetrics(ctx)
+		// wait for report to complete
+		<-stubbedAgent.metricsReportComplete
 
 		//then
 		assert.Equal(t, []*agent.StreamMetricsMessage{{

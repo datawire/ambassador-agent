@@ -201,8 +201,11 @@ func NewAgent(
 	}
 
 	return &Agent{
-		minReportPeriod:  reportPeriod,
-		reportComplete:   make(chan error),
+		minReportPeriod: reportPeriod,
+		reportComplete:  make(chan error),
+		//metricsReportComplete:     make(chan error),
+		//diagnosticsReportComplete: make(chan error),
+
 		ambassadorAPIKey: os.Getenv(cloudConnectTokenKey),
 		// store this same value in a different variable, so that if ambassadorAPIKey gets
 		// changed by some other configuration, we know what to change it back to. See
