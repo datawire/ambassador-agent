@@ -155,9 +155,7 @@ func (dh *BasicDirectiveHandler) reportCommandResult(
 		result.Success = false
 		result.Message = cmdError.Error()
 	}
-	a.ambassadorAPIKeyMutex.Lock()
 	apiKey := a.ambassadorAPIKey
-	a.ambassadorAPIKeyMutex.Unlock()
 	err := a.comm.ReportCommandResult(ctx, result, apiKey)
 	if err != nil {
 		dlog.Errorf(ctx, "error reporting result of command %s: %s", cmd, err)
