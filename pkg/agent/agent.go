@@ -475,6 +475,16 @@ func (a *Agent) watch(
 			a.directiveHandler.HandleDirective(ctx, a, directive)
 		}
 
+		err := a.parseCommAddr()
+		if err != nil {
+			// There's a problem with the connection
+			// configuration. Rather than processing the snapshot and then
+			// failing to send the resulting report, let's just fail now. The user
+			// will see the error in the logs and correct the configuration.
+			dlog.Errorf(ctx, "Cloud connection address %s invalid", a.connAddress)
+			continue
+		}
+
 		// only ask ambassador for a snapshot if we're actually going to report it.
 		// if reportRunning is true, that means we're still in the quiet period
 		// after sending a report.
@@ -503,6 +513,7 @@ func (a *Agent) watch(
 					Kubernetes: &snapshotTypes.KubernetesSnapshot{},
 				}
 			}
+
 			dlog.Debug(ctx, "Received snapshot in agent")
 			if err = a.ProcessSnapshot(ctx, snapshot, ambHost); err != nil {
 				dlog.Warnf(ctx, "error processing snapshot: %+v", err)
@@ -515,7 +526,7 @@ func (a *Agent) watch(
 			continue
 		}
 
-		// If comm is nil, make a new comm
+		// Ensure comm so we can send reports. There is no call to ClearComm until the next loop
 		if a.comm == nil {
 			// The communications channel to the DCP was not yet created or was
 			// closed above, due to a change in identity, or close elsewhere, due to
@@ -564,6 +575,26 @@ func (a *Agent) watch(
 			dlog.Debugf(ctx, "Not reporting diagnostics [reporting stopped = %t] [report running = %t]", a.reportingStopped, a.metricsReportRunning.Value())
 		}
 	}
+}
+
+func (a *Agent) parseCommAddr() error {
+	newConnInfo, err := connInfoFromAddress(a.connAddress)
+	if err != nil {
+		return err
+	}
+
+	if a.connInfo == nil || *newConnInfo != *a.connInfo {
+		// The configuration for the Director endpoint has changed: either this
+		// is the first snapshot or the user changed the value.
+		//
+		// Close any existing communications channel so that we can create
+		// a new one with the new endpoint.
+		a.ClearComm()
+
+		// Save the new endpoint information.
+		a.connInfo = newConnInfo
+	}
+	return nil
 }
 
 func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context, ambassadorHost string) {
@@ -718,28 +749,6 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 	}
 	a.agentID = agentID
 
-	newConnInfo, err := connInfoFromAddress(a.connAddress)
-	if err != nil {
-		// The user has attempted to turn on the Agent (otherwise GetIdentity
-		// would have returned nil), but there's a problem with the connection
-		// configuration. Rather than processing the entire snapshot and then
-		// failing to send the resulting report, let's just fail now. The user
-		// will see the error in the logs and correct the configuration.
-		return err
-	}
-
-	if a.connInfo == nil || *newConnInfo != *a.connInfo {
-		// The configuration for the Director endpoint has changed: either this
-		// is the first snapshot or the user changed the value.
-		//
-		// Close any existing communications channel so that we can create
-		// a new one with the new endpoint.
-		a.ClearComm()
-
-		// Save the new endpoint information.
-		a.connInfo = newConnInfo
-	}
-
 	if snapshot.Kubernetes != nil {
 		// load services before pods so that we can do labelMatching
 		if !a.emissaryPresent && a.fallbackWatcher != nil {
@@ -763,7 +772,7 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 		}
 	}
 
-	if err = snapshot.Sanitize(); err != nil {
+	if err := snapshot.Sanitize(); err != nil {
 		dlog.Errorf(ctx, "Error sanitizing snapshot: %v", err)
 		return err
 	}
