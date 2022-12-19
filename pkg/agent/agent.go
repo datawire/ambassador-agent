@@ -255,6 +255,7 @@ func (a *Agent) SetReportDiagnosticsAllowed(reportDiagnosticsAllowed bool) {
 }
 
 func getAmbSnapshotInfo(url string) (*snapshotTypes.Snapshot, error) {
+	// TODO maybe put request in go-routine
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -805,28 +806,6 @@ func (a *Agent) ProcessDiagnostics(ctx context.Context, diagnostics *diagnostics
 		return nil, nil
 	}
 	a.agentID = agentID
-
-	newConnInfo, err := connInfoFromAddress(a.connAddress)
-	if err != nil {
-		// The user has attempted to turn on the Agent (otherwise GetIdentity
-		// would have returned nil), but there's a problem with the connection
-		// configuration. Rather than processing the entire snapshot and then
-		// failing to send the resulting report, let's just fail now. The user
-		// will see the error in the logs and correct the configuration.
-		return nil, err
-	}
-
-	if a.connInfo == nil || *newConnInfo != *a.connInfo {
-		// The configuration for the Director endpoint has changed: either this
-		// is the first snapshot or the user changed the value.
-		//
-		// Close any existing communications channel so that we can create
-		// a new one with the new endpoint.
-		a.ClearComm()
-
-		// Save the new endpoint information.
-		a.connInfo = newConnInfo
-	}
 
 	rawJsonDiagnostics, err := json.Marshal(diagnostics)
 	if err != nil {
