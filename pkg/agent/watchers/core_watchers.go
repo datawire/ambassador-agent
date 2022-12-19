@@ -14,7 +14,6 @@ import (
 )
 
 type CoreWatchers struct {
-	cond             *sync.Cond
 	cmapsWatchers    k8sapi.WatcherGroup[*kates.ConfigMap]
 	deployWatchers   k8sapi.WatcherGroup[*kates.Deployment]
 	podWatchers      k8sapi.WatcherGroup[*kates.Pod]
@@ -27,25 +26,28 @@ func NewCoreWatchers(clientset *kubernetes.Clientset, namespaces []string, om Ob
 	appClient := clientset.AppsV1().RESTClient()
 	coreClient := clientset.CoreV1().RESTClient()
 
-	cond := &sync.Cond{
-		L: &sync.Mutex{},
-	}
-
 	coreWatchers := &CoreWatchers{
 		cmapsWatchers:    k8sapi.NewWatcherGroup[*kates.ConfigMap](),
 		deployWatchers:   k8sapi.NewWatcherGroup[*kates.Deployment](),
 		podWatchers:      k8sapi.NewWatcherGroup[*kates.Pod](),
 		endpointWatchers: k8sapi.NewWatcherGroup[*kates.Endpoints](),
-		cond:             cond,
 		om:               om,
 	}
 
 	// TODO equals func to prevent over-broadcasting
 	for _, ns := range namespaces {
-		coreWatchers.cmapsWatchers.AddWatcher(k8sapi.NewWatcher("configmaps", ns, coreClient, &kates.ConfigMap{}, cond, nil))
-		coreWatchers.deployWatchers.AddWatcher(k8sapi.NewWatcher("deployments", ns, appClient, &kates.Deployment{}, cond, nil))
-		coreWatchers.podWatchers.AddWatcher(k8sapi.NewWatcher("pods", ns, coreClient, &kates.Pod{}, cond, nil))
-		coreWatchers.endpointWatchers.AddWatcher(k8sapi.NewWatcher("endpoints", ns, coreClient, &kates.Endpoints{}, cond, nil))
+		coreWatchers.cmapsWatchers.AddWatcher(k8sapi.NewWatcher("configmaps", coreClient, &sync.Cond{L: &sync.Mutex{}},
+			k8sapi.WithNamespace[*kates.ConfigMap](ns),
+		))
+		coreWatchers.deployWatchers.AddWatcher(k8sapi.NewWatcher("deployments", appClient, &sync.Cond{L: &sync.Mutex{}},
+			k8sapi.WithNamespace[*kates.Deployment](ns),
+		))
+		coreWatchers.podWatchers.AddWatcher(k8sapi.NewWatcher("pods", coreClient, &sync.Cond{L: &sync.Mutex{}},
+			k8sapi.WithNamespace[*kates.Pod](ns),
+		))
+		coreWatchers.endpointWatchers.AddWatcher(k8sapi.NewWatcher("endpoints", coreClient, &sync.Cond{L: &sync.Mutex{}},
+			k8sapi.WithNamespace[*kates.Endpoints](ns),
+		))
 	}
 
 	return coreWatchers
@@ -149,10 +151,6 @@ func (w *CoreWatchers) LoadSnapshot(ctx context.Context, snapshot *snapshotTypes
 
 	snapshot.Kubernetes.Endpoints = w.loadEndpoints(ctx)
 	dlog.Debugf(ctx, "Found %d Endpoints", len(snapshot.Kubernetes.Endpoints))
-}
-
-func (w *CoreWatchers) Subscribe(ctx context.Context) <-chan struct{} {
-	return k8sapi.Subscribe(ctx, w.cond)
 }
 
 func (w *CoreWatchers) EnsureStarted(ctx context.Context) {

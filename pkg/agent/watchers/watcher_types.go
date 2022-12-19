@@ -12,7 +12,6 @@ type ObjectModifier func(obj runtime.Object)
 //go:generate mockgen -destination=mocks/serviceeventsservice_mock.go . SnapshotWatcher
 type SnapshotWatcher interface {
 	LoadSnapshot(ctx context.Context, snapshot *snapshotTypes.Snapshot)
-	Subscribe(ctx context.Context) <-chan struct{}
 	EnsureStarted(ctx context.Context)
 	Cancel()
 }

@@ -44,6 +44,15 @@ const (
 	cloudConnectTokenDefaultSuffix = "agent-cloud-token"
 )
 
+// internal k8s service
+const (
+	AdminDiagnosticsPort     = 8877
+	DefaultSnapshotURLFmt    = "http://ambassador-admin:%d/snapshot-external"
+	DefaultDiagnosticsURLFmt = "http://ambassador-admin:%d/ambassador/v0/diag/?json=true"
+
+	ExternalSnapshotPort = 8005
+)
+
 type Comm interface {
 	Close() error
 	Report(context.Context, *agent.Snapshot, string) error
@@ -73,8 +82,9 @@ func (ab *atomicBool) Set(v bool) {
 // Agent is the component that talks to the DCP Director, which is a cloud
 // service run by Datawire.
 type Agent struct {
-	// Connectivity to the Director
+	*agent.UnimplementedAmbassadorAgentServer
 
+	// Connectivity to the Director
 	comm                  Comm
 	connInfo              *ConnInfo
 	agentID               *agent.Identity
@@ -139,8 +149,9 @@ type Agent struct {
 	diagnosticsReportComplete chan error // Report() finished with this error
 
 	// Stand-alone config
-	emissaryPresent bool   // if not installed by emissary, generate snapshots
-	clusterId       string // cluster id used in generated snapshots
+	edgyCount    int
+	edgyHostname string // the address for edgisarry, "" means not detected
+	clusterId    string // cluster id used in generated snapshots
 
 	clientset *kubernetes.Clientset
 	// snapshot watchers
@@ -148,7 +159,10 @@ type Agent struct {
 	fallbackWatcher watchers.SnapshotWatcher
 	// config watchers
 	configWatchers    *ConfigWatchers
-	ambassadorWatcher *AmbassadorWatcher
+	edgisarryWatchers *watchers.EdgisarryWatchers
+
+	snapshotURL    string
+	diagnosticsURL string
 }
 
 // New returns a new Agent.
@@ -219,8 +233,14 @@ func NewAgent(
 		clientset:         clientset,
 		coreWatchers:      watchers.NewCoreWatchers(clientset, namespacesToWatch, objectModifier),
 		configWatchers:    NewConfigWatchers(clientset, agentNamespace),
-		ambassadorWatcher: NewAmbassadorWatcher(clientset, agentNamespace),
+		edgisarryWatchers: watchers.NewEdgisarryWatchers(ctx, clientset, namespacesToWatch),
 		fallbackWatcher:   watchers.NewFallbackWatcher(ctx, clientset, namespacesToWatch, objectModifier),
+
+		//urls
+		// TODO if these are set by env var, or if this agent is installed with an edgisarry
+		// kill the edgisarry watcher so these values do not get overwritten
+		snapshotURL:    getEnvWithDefault("AES_SNAPSHOT_URL", fmt.Sprintf(DefaultSnapshotURLFmt, ExternalSnapshotPort)),
+		diagnosticsURL: getEnvWithDefault("AES_DIAGNOSTICS_URL", fmt.Sprintf(DefaultDiagnosticsURLFmt, AdminDiagnosticsPort)),
 	}
 }
 
@@ -387,7 +407,7 @@ func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) e
 
 	a.coreWatchers.EnsureStarted(ctx)
 	a.handleAmbassadorEndpointChange(ctx, ambHost)
-	ambCh := k8sapi.Subscribe(ctx, a.ambassadorWatcher.cond)
+	ambCh := a.edgisarryWatchers.Subscribe(ctx)
 
 	// The following is kates that im not sure we can replicate with k8sapi as it currently exists
 	// leaving it in for now
@@ -476,7 +496,7 @@ func (a *Agent) watch(
 			// if emissary is present, get initial snapshot from emissary
 			// otherwise, create it
 			var snapshot *snapshotTypes.Snapshot
-			if a.emissaryPresent {
+			if a.edgyCount > 0 {
 				snapshot, err = getAmbSnapshotInfo(snapshotURL)
 				if err != nil {
 					dlog.Warnf(ctx, "Error getting snapshot from ambassador %+v", err)
@@ -503,7 +523,7 @@ func (a *Agent) watch(
 		}
 		a.MaybeReportSnapshot(ctx)
 
-		if !a.diagnosticsReportingStopped && !a.diagnosticsReportRunning.Value() && a.reportDiagnosticsAllowed && a.emissaryPresent {
+		if !a.diagnosticsReportingStopped && !a.diagnosticsReportRunning.Value() && a.reportDiagnosticsAllowed && a.edgyCount > 0 {
 			diagnostics, err := getAmbDiagnosticsInfo(diagnosticsURL)
 			if err != nil {
 				dlog.Warnf(ctx, "Error getting diagnostics from ambassador %+v", err)
@@ -518,23 +538,40 @@ func (a *Agent) watch(
 	}
 }
 
+// handleAmbassadorEndpointChange reads from edgisarryWatchers. Each entry should be an edgissary instance.
+// TODO check if we have been installed with edgisarry helm chart. If so, kill edgisarryWatchers and talk to installed instance
 func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context, ambassadorHost string) {
-	target := strings.Split(ambassadorHost, ".")[0]
-	if endpoints, err := a.ambassadorWatcher.endpointWatcher.List(ctx); err == nil {
-		for _, endpoint := range endpoints {
-			if endpoint.Name == target {
-				dlog.Infof(ctx, "%s detected, using emissary snapshots.", target)
-				a.emissaryPresent = true
-				a.fallbackWatcher.Cancel()
-				return
-			}
-		}
-	} else {
+	endpoints, err := a.edgisarryWatchers.EndpointsWatchers.List(ctx)
+	if err != nil {
 		dlog.Warnf(ctx, "Unable to watch for ambassador-admin service, will act as though standalone: %v", err)
+		a.edgyHostname = ""
+		a.fallbackWatcher.EnsureStarted(ctx)
+		return
 	}
-	dlog.Infof(ctx, "%s not detected, creating own snapshots.", target)
-	a.emissaryPresent = false
-	a.fallbackWatcher.EnsureStarted(ctx)
+
+	// if there are no hits, start up fallback watchers
+	a.edgyCount = len(endpoints)
+	if a.edgyCount == 0 {
+		a.edgyHostname = ""
+		a.fallbackWatcher.EnsureStarted(ctx)
+	}
+
+	// At this point there is an edgissary in the cluster
+	a.fallbackWatcher.Cancel()
+
+	// First we will look for something in our own namespace
+	name_namespace := strings.Split(ambassadorHost, ".")
+	for _, e := range endpoints {
+		if e.Namespace == name_namespace[1] {
+			a.edgyHostname = fmt.Sprintf("%s.%s", e.GetName(), e.GetNamespace())
+			dlog.Infof(ctx, "%s detected, using edgisarry snapshots", a.edgyHostname)
+			return
+		}
+	}
+
+	// just grab the first instance
+	a.edgyHostname = fmt.Sprintf("%s.%s", endpoints[0].GetName(), endpoints[0].GetNamespace())
+	dlog.Infof(ctx, "%s detected, using edgisarry snapshots", a.edgyHostname)
 }
 
 func (a *Agent) MaybeReportSnapshot(ctx context.Context) {
@@ -704,8 +741,7 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 	}
 
 	if snapshot.Kubernetes != nil {
-		// load services before pods so that we can do labelMatching
-		if !a.emissaryPresent && a.fallbackWatcher != nil {
+		if a.edgyCount > 0 && a.fallbackWatcher != nil {
 			a.fallbackWatcher.LoadSnapshot(ctx, snapshot)
 		}
 		if a.coreWatchers != nil {
@@ -977,4 +1013,9 @@ func objectModifier(obj runtime.Object) {
 
 		obj.ObjectMeta.ManagedFields = nil
 	}
+}
+
+func (a *Agent) IngressInfo(ctx context.Context, request *agent.IngressInfoRequest) (*agent.IngressInfoResponse, error) {
+
+	return nil, nil
 }

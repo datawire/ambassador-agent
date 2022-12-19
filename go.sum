@@ -208,6 +208,8 @@ github.com/datawire/dlib v1.3.0/go.mod h1:NiGDmetmbkBvtznpWSx6C0vA0s0LK9aHna3LJD
 github.com/datawire/dtest v0.0.0-20210928162311-722b199c4c2f h1:Yz+xVYWkSARvfJ0e3LWwF1N5F+zJI9pCZ9R41OtkrKE=
 github.com/datawire/k8sapi v0.0.11 h1:G5sXVDQw31/86DDCfsFbv7vzuLxf5mfwcvb/6qB8H2g=
 github.com/datawire/k8sapi v0.0.11/go.mod h1:JwHXYUKrMwYoAhl18CIf8XDqHduhKZPc/QZ75prLLQs=
+github.com/datawire/k8sapi v0.1.1 h1:MHkhfh5ZfexyZDQY4NE68SZdq+CZyjMh667sKG1Unvg=
+github.com/datawire/k8sapi v0.1.1/go.mod h1:JwHXYUKrMwYoAhl18CIf8XDqHduhKZPc/QZ75prLLQs=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

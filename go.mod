@@ -84,7 +84,7 @@ replace (
 require (
 	github.com/argoproj/argo-rollouts v1.2.2
 	github.com/datawire/dlib v1.3.0
-	github.com/datawire/k8sapi v0.0.11
+	github.com/datawire/k8sapi v0.1.1
 	github.com/emissary-ingress/emissary/v3 v3.2.0
 	github.com/getkin/kin-openapi v0.97.0
 	github.com/google/uuid v1.3.0

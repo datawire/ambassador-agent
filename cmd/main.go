@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -21,19 +22,12 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"github.com/datawire/ambassador-agent/pkg/agent"
+	rpc "github.com/datawire/ambassador-agent/pkg/api/agent"
 	"github.com/datawire/dlib/dgroup"
+	"github.com/datawire/dlib/dhttp"
 	"github.com/datawire/dlib/dlog"
-)
 
-// internal k8s service
-const (
-	AdminDiagnosticsPort     = 8877
-	DefaultSnapshotURLFmt    = "http://ambassador-admin:%d/snapshot-external"
-	DefaultDiagnosticsURLFmt = "http://ambassador-admin:%d/ambassador/v0/diag/?json=true"
-
-	ExternalSnapshotPort = 8005
-
-	leaseLockName = "ambassador-agent-lease-lock"
+	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
 )
 
 func main() {
@@ -61,14 +55,12 @@ func main() {
 	agentNamespace := getEnvWithDefault("AGENT_NAMESPACE", "ambassador")
 	ambAgent := agent.NewAgent(ctx, nil, agent.NewArgoRolloutsGetter, agent.NewSecretsGetter, clientset, agentNamespace)
 
-	snapshotURL := getEnvWithDefault("AES_SNAPSHOT_URL", fmt.Sprintf(DefaultSnapshotURLFmt, ExternalSnapshotPort))
-	diagnosticsURL := getEnvWithDefault("AES_DIAGNOSTICS_URL", fmt.Sprintf(DefaultDiagnosticsURLFmt, AdminDiagnosticsPort))
 	reportDiagnostics := os.Getenv("AES_REPORT_DIAGNOSTICS_TO_CLOUD")
 	if reportDiagnostics == "true" {
 		ambAgent.SetReportDiagnosticsAllowed(true)
 	}
 
-	metricsListener, err := net.Listen("tcp", ":8080")
+	httpListener, err := net.Listen("tcp", ":8080")
 	if err != nil {
 		dlog.Error(ctx, err.Error())
 		os.Exit(1)
@@ -76,9 +68,22 @@ func main() {
 	dlog.Info(ctx, "metrics service listening on :8080")
 
 	grp := dgroup.NewGroup(ctx, dgroup.GroupConfig{})
-	grp.Go("metrics-server", func(ctx context.Context) error {
+
+	grp.Go("http-server", func(ctx context.Context) error {
+		grpcServer := grpc.NewServer()
+
+		// Register metrics server to sink and store metrics
 		metricsServer := agent.NewMetricsServer(ambAgent.MetricsRelayHandler)
-		return metricsServer.Serve(ctx, metricsListener)
+		envoyMetrics.RegisterMetricsServiceServer(grpcServer, metricsServer)
+
+		// Register agent server
+		rpc.RegisterAmbassadorAgentServer(grpcServer, ambAgent)
+
+		sc := &dhttp.ServerConfig{
+			Handler: grpcServer,
+		}
+
+		return sc.Serve(ctx, httpListener)
 	})
 
 	grp.Go("metrics-reporter", func(ctx context.Context) error {

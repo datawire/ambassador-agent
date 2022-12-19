@@ -35,7 +35,9 @@ func NewFallbackWatcher(ctx context.Context, clientset *kubernetes.Clientset, na
 	}
 
 	for _, ns := range namespaces {
-		siWatcher.serviceWatchers.AddWatcher(k8sapi.NewWatcher("services", ns, coreClient, &kates.Service{}, cond, nil))
+		siWatcher.serviceWatchers.AddWatcher(k8sapi.NewWatcher("services", coreClient, cond,
+			k8sapi.WithNamespace[*kates.Service](ns),
+		))
 	}
 
 	return siWatcher
@@ -74,8 +76,4 @@ func (w *FallbackWatchers) LoadSnapshot(ctx context.Context, snapshot *snapshotT
 		}
 	}
 	dlog.Debugf(ctx, "Found %d ingresses", len(snapshot.Kubernetes.Ingresses))
-}
-
-func (w *FallbackWatchers) Subscribe(ctx context.Context) <-chan struct{} {
-	return k8sapi.Subscribe(ctx, w.cond)
 }

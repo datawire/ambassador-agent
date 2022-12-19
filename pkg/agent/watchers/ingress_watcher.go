@@ -158,14 +158,18 @@ func getIngressWatcher(ctx context.Context, clientset *kubernetes.Clientset, nam
 		netClient := clientset.NetworkingV1().RESTClient()
 		watcher := k8sapi.NewWatcherGroup[*networking.Ingress]()
 		for _, ns := range namespaces {
-			watcher.AddWatcher(k8sapi.NewWatcher("ingresses", ns, netClient, &networking.Ingress{}, cond, nil))
+			watcher.AddWatcher(k8sapi.NewWatcher("ingresses", netClient, cond,
+				k8sapi.WithNamespace[*networking.Ingress](ns),
+			))
 		}
 		return &networkWatcher{watcher: watcher, om: om}
 	}
 	netClient := clientset.ExtensionsV1beta1().RESTClient()
 	watcher := k8sapi.NewWatcherGroup[*k8s_resource_types.Ingress]()
 	for _, ns := range namespaces {
-		watcher.AddWatcher(k8sapi.NewWatcher("ingresses", ns, netClient, &k8s_resource_types.Ingress{}, cond, nil))
+		watcher.AddWatcher(k8sapi.NewWatcher("ingresses", netClient, cond,
+			k8sapi.WithNamespace[*k8s_resource_types.Ingress](ns),
+		))
 	}
 	return watcher
 }

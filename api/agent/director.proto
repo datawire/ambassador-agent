@@ -14,6 +14,7 @@ package agent;
 
 option go_package = "./agent";
 
+// Saas_app server
 service Director {
   // Report a consistent Snapshot of information to the DCP.  This
   // method is deprecated, you should call ReportStream instead.

@@ -23,14 +23,13 @@ func NewConfigWatchers(clientset *kubernetes.Clientset, watchedNs string) *Confi
 	}
 
 	return &ConfigWatchers{
-		mapsWatcher: k8sapi.NewWatcher("configmaps", watchedNs, coreClient, &kates.ConfigMap{}, cond, func(o1, o2 *kates.ConfigMap) bool {
-			// TODO equals func to prevent over-broadcasting
-			return false
-		}),
-		secretWatcher: k8sapi.NewWatcher("secrets", watchedNs, coreClient, &kates.Secret{}, cond, func(o1, o2 *kates.Secret) bool {
-			// TODO equals func to prevent over-broadcasting
-			return false
-		}),
+		// TODO equals func to prevent over-broadcasting
+		mapsWatcher: k8sapi.NewWatcher("configmaps", coreClient, cond,
+			k8sapi.WithNamespace[*kates.ConfigMap](watchedNs),
+		),
+		secretWatcher: k8sapi.NewWatcher("secrets", coreClient, cond,
+			k8sapi.WithNamespace[*kates.Secret](watchedNs),
+		),
 		cond: cond,
 	}
 }
