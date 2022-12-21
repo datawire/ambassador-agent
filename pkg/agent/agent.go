@@ -75,13 +75,12 @@ func (ab *atomicBool) Set(v bool) {
 type Agent struct {
 	// Connectivity to the Director
 
-	comm                  Comm
-	connInfo              *ConnInfo
-	agentID               *agent.Identity
-	newDirective          <-chan *agent.Directive
-	ambassadorAPIKeyMutex sync.Mutex
-	ambassadorAPIKey      string
-	directiveHandler      DirectiveHandler
+	comm             Comm
+	connInfo         *ConnInfo
+	agentID          *agent.Identity
+	newDirective     <-chan *agent.Directive
+	ambassadorAPIKey string
+	directiveHandler DirectiveHandler
 	// store what the initial value was in the env var so we can set the ambassadorAPIKey value
 	// (^^Above) if the configmap and/or secret get deleted.
 	ambassadorAPIKeyEnvVarValue string
@@ -125,6 +124,10 @@ type Agent struct {
 
 	// Used to accumulate metrics for a same timestamp before pushing them to the cloud.
 	aggregatedMetrics map[string][]*io_prometheus_client.MetricFamily
+
+	// Metrics reporting status
+	metricsReportComplete chan error // Report() finished with this error
+	metricsReportRunning  atomicBool
 
 	// Extra headers to inject into RPC requests to ambassador cloud.
 	rpcExtraHeaders []string
@@ -198,8 +201,11 @@ func NewAgent(
 	}
 
 	return &Agent{
-		minReportPeriod:  reportPeriod,
-		reportComplete:   make(chan error),
+		minReportPeriod: reportPeriod,
+		reportComplete:  make(chan error),
+		//metricsReportComplete:     make(chan error),
+		//diagnosticsReportComplete: make(chan error),
+
 		ambassadorAPIKey: os.Getenv(cloudConnectTokenKey),
 		// store this same value in a different variable, so that if ambassadorAPIKey gets
 		// changed by some other configuration, we know what to change it back to. See
@@ -209,7 +215,6 @@ func NewAgent(
 		agentNamespace:               agentNamespace,
 		agentCloudResourceConfigName: os.Getenv("AGENT_CONFIG_RESOURCE_NAME"),
 		directiveHandler:             directiveHandler,
-		reportRunning:                atomicBool{value: false},
 		agentWatchFieldSelector:      getEnvWithDefault("AGENT_WATCH_FIELD_SELECTOR", "metadata.namespace!=kube-system"),
 		rpcExtraHeaders:              rpcExtraHeaders,
 		aggregatedMetrics:            map[string][]*io_prometheus_client.MetricFamily{},
@@ -250,6 +255,7 @@ func (a *Agent) SetReportDiagnosticsAllowed(reportDiagnosticsAllowed bool) {
 }
 
 func getAmbSnapshotInfo(url string) (*snapshotTypes.Snapshot, error) {
+	// TODO maybe put request in go-routine
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -319,8 +325,6 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	// if the key is new, reset the connection so we use a new api key (or break the connection if the api key was
 	// unset). The agent will reset the connection the next time it tries to send a report
 	maybeResetComm := func(newKey string, a *Agent) {
-		a.ambassadorAPIKeyMutex.Lock()
-		defer a.ambassadorAPIKeyMutex.Unlock()
 		if newKey != a.ambassadorAPIKey {
 			a.ambassadorAPIKey = newKey
 			a.ClearComm()
@@ -422,6 +426,9 @@ func (a *Agent) waitForAPIKey(ctx context.Context, ch <-chan struct{}) {
 	}
 }
 
+// watch is a syncronous function.
+// It uses channels to watch for config changes, if none are firing,
+// a report is maybe sent. Atomic booleans are used to interval reporting
 func (a *Agent) watch(
 	ctx context.Context,
 	snapshotURL, diagnosticsURL, ambHost string,
@@ -468,6 +475,16 @@ func (a *Agent) watch(
 			a.directiveHandler.HandleDirective(ctx, a, directive)
 		}
 
+		err := a.parseCommAddr()
+		if err != nil {
+			// There's a problem with the connection
+			// configuration. Rather than processing the snapshot and then
+			// failing to send the resulting report, let's just fail now. The user
+			// will see the error in the logs and correct the configuration.
+			dlog.Errorf(ctx, "Cloud connection address %s invalid", a.connAddress)
+			continue
+		}
+
 		// only ask ambassador for a snapshot if we're actually going to report it.
 		// if reportRunning is true, that means we're still in the quiet period
 		// after sending a report.
@@ -496,26 +513,88 @@ func (a *Agent) watch(
 					Kubernetes: &snapshotTypes.KubernetesSnapshot{},
 				}
 			}
+
 			dlog.Debug(ctx, "Received snapshot in agent")
 			if err = a.ProcessSnapshot(ctx, snapshot, ambHost); err != nil {
 				dlog.Warnf(ctx, "error processing snapshot: %+v", err)
 			}
 		}
-		a.MaybeReportSnapshot(ctx)
 
-		if !a.diagnosticsReportingStopped && !a.diagnosticsReportRunning.Value() && a.reportDiagnosticsAllowed && a.emissaryPresent {
-			diagnostics, err := getAmbDiagnosticsInfo(diagnosticsURL)
+		// We are about to start sending reports. Lets make sure we we have a comm and apikey first
+		if a.ambassadorAPIKey == "" {
+			dlog.Debugf(ctx, "CLOUD_CONNECT_TOKEN not set in the environment, not reporting diagnostics")
+			continue
+		}
+
+		// Ensure comm so we can send reports. There is no call to ClearComm until the next loop
+		if a.comm == nil {
+			// The communications channel to the DCP was not yet created or was
+			// closed above, due to a change in identity, or close elsewhere, due to
+			// a change in endpoint configuration.
+			newComm, err := NewComm(
+				ctx, a.connInfo, a.agentID, a.ambassadorAPIKey, a.rpcExtraHeaders)
+
 			if err != nil {
-				dlog.Warnf(ctx, "Error getting diagnostics from ambassador %+v", err)
+				dlog.Warnf(ctx, "Failed to dial the DCP: %v", err)
+				dlog.Warn(ctx, "DCP functionality disabled until next retry")
+				continue
 			}
-			dlog.Debug(ctx, "Received diagnostics in agent")
-			agentDiagnostics, err := a.ProcessDiagnostics(ctx, diagnostics, ambHost)
-			if err != nil {
-				dlog.Warnf(ctx, "error processing diagnostics: %+v", err)
-			}
-			a.ReportDiagnostics(ctx, agentDiagnostics)
+
+			a.comm = newComm
+			a.newDirective = a.comm.Directives()
+		}
+
+		if !a.reportingStopped && !a.reportRunning.Value() && a.reportToSend != nil {
+			a.ReportSnapshot(ctx)
+		} else {
+			// Don't report if the Director told us to stop reporting, if we are
+			// already sending a report or waiting for the minimum time between
+			// reports, or if there is nothing new to report right now.
+			dlog.Debugf(ctx, "Not reporting snapshot [reporting stopped = %t] [report running = %t] [report to send is nil = %t]", a.reportingStopped, a.reportRunning.Value(), (a.reportToSend == nil))
+		}
+
+		// only get diagnostics and metrics from edgissary if it is present
+		// TODO get metrics/diagnostics from traffic manager?
+		if !a.emissaryPresent {
+			dlog.Debugf(ctx, "Edgissary not present, not reporting edgissary diagnostics and metrics")
+			continue
+		}
+
+		if !a.diagnosticsReportingStopped && !a.diagnosticsReportRunning.Value() && a.reportDiagnosticsAllowed {
+			a.ReportDiagnostics(ctx, diagnosticsURL, ambHost)
+		} else {
+			// Don't report if the Director told us to stop reporting, if we are
+			// already sending a report or waiting for the minimum time between
+			// reports
+			dlog.Debugf(ctx, "Not reporting diagnostics [reporting stopped = %t] [report running = %t]", a.diagnosticsReportingStopped, a.diagnosticsReportRunning.Value())
+		}
+
+		if !a.reportingStopped && !a.metricsReportRunning.Value() {
+			a.ReportMetrics(ctx)
+		} else {
+			dlog.Debugf(ctx, "Not reporting diagnostics [reporting stopped = %t] [report running = %t]", a.reportingStopped, a.metricsReportRunning.Value())
 		}
 	}
+}
+
+func (a *Agent) parseCommAddr() error {
+	newConnInfo, err := connInfoFromAddress(a.connAddress)
+	if err != nil {
+		return err
+	}
+
+	if a.connInfo == nil || *newConnInfo != *a.connInfo {
+		// The configuration for the Director endpoint has changed: either this
+		// is the first snapshot or the user changed the value.
+		//
+		// Close any existing communications channel so that we can create
+		// a new one with the new endpoint.
+		a.ClearComm()
+
+		// Save the new endpoint information.
+		a.connInfo = newConnInfo
+	}
+	return nil
 }
 
 func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context, ambassadorHost string) {
@@ -537,131 +616,120 @@ func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context, ambassadorHo
 	a.fallbackWatcher.EnsureStarted(ctx)
 }
 
-func (a *Agent) MaybeReportSnapshot(ctx context.Context) {
-	dlog.Debugf(ctx, "Trying to send snapshot")
-	if a.ambassadorAPIKey == "" {
-		dlog.Error(ctx, "CLOUD_CONNECT_TOKEN not set in the environment, not reporting snapshot")
-		return
-	}
-	if a.reportingStopped || a.reportRunning.Value() || (a.reportToSend == nil) {
-		// Don't report if the Director told us to stop reporting, if we are
-		// already sending a report or waiting for the minimum time between
-		// reports, or if there is nothing new to report right now.
-		dlog.Debugf(ctx, "Not reporting snapshot [reporting stopped = %t] [report running = %t] [report to send is nil = %t]", a.reportingStopped, a.reportRunning.Value(), (a.reportToSend == nil))
-		return
-	}
-
-	// It's time to send a report
-	if a.comm == nil {
-		// The communications channel to the DCP was not yet created or was
-		// closed above, due to a change in identity, or close elsewhere, due to
-		// a change in endpoint configuration.
-		newComm, err := NewComm(
-			ctx, a.connInfo, a.agentID, a.ambassadorAPIKey, a.rpcExtraHeaders)
-
-		if err != nil {
-			dlog.Warnf(ctx, "Failed to dial the DCP: %v", err)
-			dlog.Warn(ctx, "DCP functionality disabled until next retry")
-
-			return
-		}
-
-		a.comm = newComm
-		a.newDirective = a.comm.Directives()
-	}
+func (a *Agent) ReportSnapshot(ctx context.Context) {
+	dlog.Debugf(ctx, "Sending snapshot")
 	a.reportRunning.Set(true) // Cleared when the report completes
 
 	// Send a report. This is an RPC, i.e. it can block, so we do this in a
 	// goroutine. Sleep after send so we don't need to keep track of
 	// whether/when it's okay to send the next report.
-	go func(ctx context.Context, report *agent.Snapshot, delay time.Duration) {
-		var err error
-		defer func() {
-			if err != nil {
-				dlog.Warnf(ctx, "failed to report: %+v", err)
-			}
-			dlog.Debugf(ctx, "Finished sending snapshot report, sleeping for %s", delay.String())
-			time.Sleep(delay)
-			a.reportRunning.Set(false)
-			// make the write non blocking
-			select {
-			case a.reportComplete <- err:
-				// cool we sent something
-			default:
-				dlog.Debugf(ctx, "no one was listening on reportComplete chan")
-			}
-		}()
-		a.ambassadorAPIKeyMutex.Lock()
-		apikey := a.ambassadorAPIKey
-		a.ambassadorAPIKeyMutex.Unlock()
-		err = a.comm.Report(ctx, report, apikey)
+	go func(ctx context.Context, report *agent.Snapshot, delay time.Duration, apikey string) {
+		err := a.comm.Report(ctx, report, apikey)
+		if err != nil {
+			dlog.Warnf(ctx, "failed to report: %+v", err)
+		}
+		dlog.Debugf(ctx, "Finished sending snapshot report, sleeping for %s", delay.String())
+		time.Sleep(delay)
+		a.reportRunning.Set(false)
 
-	}(ctx, a.reportToSend, a.minReportPeriod)
+		// make the write non blocking
+		select {
+		case a.reportComplete <- err:
+			// cool we sent something
+		default:
+			// do nothing if nobody is listening
+		}
+	}(ctx, a.reportToSend, a.minReportPeriod, a.ambassadorAPIKey)
 
 	// Update state variables
 	a.reportToSend = nil // Set when a snapshot yields a fresh report
 }
 
 // ReportDiagnostics ...
-func (a *Agent) ReportDiagnostics(ctx context.Context, agentDiagnostics *agent.Diagnostics) {
-	if a.ambassadorAPIKey == "" {
-		dlog.Debugf(ctx, "CLOUD_CONNECT_TOKEN not set in the environment, not reporting diagnostics")
+func (a *Agent) ReportDiagnostics(ctx context.Context, diagnosticsURL, ambHost string) {
+	// TODO maybe put request in go-routine
+	diagnostics, err := getAmbDiagnosticsInfo(diagnosticsURL)
+	if err != nil {
+		dlog.Warnf(ctx, "Error getting diagnostics from ambassador %+v", err)
+	}
+	dlog.Debug(ctx, "Received diagnostics in agent")
+	agentDiagnostics, err := a.ProcessDiagnostics(ctx, diagnostics, ambHost)
+	if err != nil {
+		dlog.Warnf(ctx, "error processing diagnostics: %+v", err)
+	}
+	if agentDiagnostics == nil {
+		dlog.Debug(ctx, "No diagnostics exist post-processing, not reporting diagnostics")
 		return
 	}
-	if a.diagnosticsReportingStopped || a.diagnosticsReportRunning.Value() || (agentDiagnostics == nil) {
-		// Don't report if the Director told us to stop reporting, if we are
-		// already sending a report or waiting for the minimum time between
-		// reports, or if there is nothing new to report right now.
-		dlog.Debugf(ctx, "Not reporting diagnostics [reporting stopped = %t] [report running = %t] [report to send is nil = %t]", a.diagnosticsReportingStopped, a.diagnosticsReportRunning.Value(), agentDiagnostics == nil)
-		return
-	}
 
-	// It's time to send a report
-	if a.comm == nil {
-		// The communications channel to the DCP was not yet created or was
-		// closed above, due to a change in identity, or close elsewhere, due to
-		// a change in endpoint configuration.
-		newComm, err := NewComm(
-			ctx, a.connInfo, a.agentID, a.ambassadorAPIKey, a.rpcExtraHeaders)
-
-		if err != nil {
-			dlog.Warnf(ctx, "Failed to dial the DCP: %v", err)
-			dlog.Warn(ctx, "DCP functionality disabled until next retry")
-
-			return
-		}
-
-		a.comm = newComm
-		a.newDirective = a.comm.Directives()
-	}
 	a.diagnosticsReportRunning.Set(true) // Cleared when the diagnostics report completes
 
 	// Send a diagnostics report. This is an RPC, i.e. it can block, so we do this in a
 	// goroutine. Sleep after send, so we don't need to keep track of
 	// whether/when it's okay to send the next report.
-	go func(ctx context.Context, diagnosticsReport *agent.Diagnostics, delay time.Duration) {
-		var err error
-		defer func() {
-			if err != nil {
-				dlog.Warnf(ctx, "failed to do diagnostics report: %+v", err)
-			}
-			dlog.Debugf(ctx, "Finished sending diagnostics report, sleeping for %s", delay.String())
-			time.Sleep(delay)
-			a.diagnosticsReportRunning.Set(false)
-			// make the write non blocking
-			select {
-			case a.diagnosticsReportComplete <- err:
-				// cool we sent something
-			default:
-				// do nothing if nobody is listening
-			}
-		}()
-		a.ambassadorAPIKeyMutex.Lock()
-		apikey := a.ambassadorAPIKey
-		a.ambassadorAPIKeyMutex.Unlock()
-		err = a.comm.StreamDiagnostics(ctx, diagnosticsReport, apikey)
+	go func(ctx context.Context, diagnosticsReport *agent.Diagnostics, delay time.Duration, apikey string) {
+		err := a.comm.StreamDiagnostics(ctx, diagnosticsReport, apikey)
+		if err != nil {
+			dlog.Warnf(ctx, "failed to do diagnostics report: %+v", err)
+		}
+		dlog.Debugf(ctx, "Finished sending diagnostics report, sleeping for %s", delay.String())
+		time.Sleep(delay)
+		a.diagnosticsReportRunning.Set(false)
 
-	}(ctx, agentDiagnostics, a.minReportPeriod) // minReportPeriod is the one set for snapshots
+		// make the write non blocking
+		select {
+		case a.diagnosticsReportComplete <- err:
+			// cool we sent something
+		default:
+			// do nothing if nobody is listening
+		}
+	}(ctx, agentDiagnostics, a.minReportPeriod, a.ambassadorAPIKey) // minReportPeriod is the one set for snapshots
+}
+
+// ReportMetrics sends and resets a.aggregatedMetrics
+func (a *Agent) ReportMetrics(ctx context.Context) {
+	// save, then reset a.aggregatedMetrics
+	a.metricsRelayMutex.Lock()
+	am := a.aggregatedMetrics
+	a.aggregatedMetrics = make(map[string][]*io_prometheus_client.MetricFamily)
+	a.metricsRelayMutex.Unlock()
+
+	outMessage := &agent.StreamMetricsMessage{
+		Identity:     a.agentID,
+		EnvoyMetrics: []*io_prometheus_client.MetricFamily{},
+	}
+
+	for _, instanceMetrics := range am {
+		outMessage.EnvoyMetrics = append(outMessage.EnvoyMetrics, instanceMetrics...)
+	}
+
+	relayedMetricCount := len(outMessage.GetEnvoyMetrics())
+	if relayedMetricCount == 0 {
+		dlog.Debug(ctx, "No metrics to send")
+		return
+	}
+	dlog.Debugf(ctx, "Relaying %d metric(s)", relayedMetricCount)
+
+	go a.reportMetrics(ctx, outMessage, a.minReportPeriod, a.ambassadorAPIKey) // minReportPeriod is the one set for snapshots
+}
+
+// reportMetrics is meant to be called asyncronously, using pinned values as parameters
+func (a *Agent) reportMetrics(ctx context.Context, metricsReport *agent.StreamMetricsMessage, delay time.Duration, apikey string) {
+	err := a.comm.StreamMetrics(ctx, metricsReport, apikey)
+	if err != nil {
+		dlog.Warnf(ctx, "failed to do metrics report: %+v", err)
+	}
+	dlog.Debugf(ctx, "Finished sending metrics report, sleeping for %s", delay.String())
+	time.Sleep(delay)
+	a.metricsReportRunning.Set(false)
+
+	// make the write non blocking
+	select {
+	case a.metricsReportComplete <- err:
+		// cool we sent something
+	default:
+		// do nothing if nobody is listening
+	}
 }
 
 // ProcessSnapshot turns a Watt/Diag Snapshot into a report that the agent can
@@ -680,28 +748,6 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 		return nil
 	}
 	a.agentID = agentID
-
-	newConnInfo, err := connInfoFromAddress(a.connAddress)
-	if err != nil {
-		// The user has attempted to turn on the Agent (otherwise GetIdentity
-		// would have returned nil), but there's a problem with the connection
-		// configuration. Rather than processing the entire snapshot and then
-		// failing to send the resulting report, let's just fail now. The user
-		// will see the error in the logs and correct the configuration.
-		return err
-	}
-
-	if a.connInfo == nil || *newConnInfo != *a.connInfo {
-		// The configuration for the Director endpoint has changed: either this
-		// is the first snapshot or the user changed the value.
-		//
-		// Close any existing communications channel so that we can create
-		// a new one with the new endpoint.
-		a.ClearComm()
-
-		// Save the new endpoint information.
-		a.connInfo = newConnInfo
-	}
 
 	if snapshot.Kubernetes != nil {
 		// load services before pods so that we can do labelMatching
@@ -726,7 +772,7 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 		}
 	}
 
-	if err = snapshot.Sanitize(); err != nil {
+	if err := snapshot.Sanitize(); err != nil {
 		dlog.Errorf(ctx, "Error sanitizing snapshot: %v", err)
 		return err
 	}
@@ -770,28 +816,6 @@ func (a *Agent) ProcessDiagnostics(ctx context.Context, diagnostics *diagnostics
 	}
 	a.agentID = agentID
 
-	newConnInfo, err := connInfoFromAddress(a.connAddress)
-	if err != nil {
-		// The user has attempted to turn on the Agent (otherwise GetIdentity
-		// would have returned nil), but there's a problem with the connection
-		// configuration. Rather than processing the entire snapshot and then
-		// failing to send the resulting report, let's just fail now. The user
-		// will see the error in the logs and correct the configuration.
-		return nil, err
-	}
-
-	if a.connInfo == nil || *newConnInfo != *a.connInfo {
-		// The configuration for the Director endpoint has changed: either this
-		// is the first snapshot or the user changed the value.
-		//
-		// Close any existing communications channel so that we can create
-		// a new one with the new endpoint.
-		a.ClearComm()
-
-		// Save the new endpoint information.
-		a.connInfo = newConnInfo
-	}
-
 	rawJsonDiagnostics, err := json.Marshal(diagnostics)
 	if err != nil {
 		return nil, err
@@ -810,87 +834,39 @@ func (a *Agent) ProcessDiagnostics(ctx context.Context, diagnostics *diagnostics
 
 var allowedMetricsSuffixes = []string{"upstream_rq_total", "upstream_rq_time", "upstream_rq_5xx"}
 
-// MetricsReporter is an interval using time.After,
-// sending and resetting resetting a.aggregatedMetrics
-func (a *Agent) MetricsReporter(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			err := ctx.Err()
-			dlog.Errorf(ctx, "Stopping metrics reporter: %s", err)
-			return err
-		case <-time.After(defaultMinReportPeriod):
-			a.ReportMetrics(ctx)
-		}
-	}
-}
-
-func (a *Agent) ReportMetrics(ctx context.Context) {
-	// TODO make comm thread-safe
-	if a.comm != nil && !a.reportingStopped {
-
-		a.metricsRelayMutex.Lock()
-		aggregatedMetrics := a.aggregatedMetrics
-		a.aggregatedMetrics = make(map[string][]*io_prometheus_client.MetricFamily)
-		a.metricsRelayMutex.Unlock()
-
-		outMessage := &agent.StreamMetricsMessage{
-			Identity:     a.agentID,
-			EnvoyMetrics: []*io_prometheus_client.MetricFamily{},
-		}
-
-		for _, instanceMetrics := range aggregatedMetrics {
-			outMessage.EnvoyMetrics = append(outMessage.EnvoyMetrics, instanceMetrics...)
-		}
-
-		if relayedMetricCount := len(outMessage.GetEnvoyMetrics()); relayedMetricCount > 0 {
-			dlog.Debugf(ctx, "Relaying %d metric(s)", relayedMetricCount)
-			a.ambassadorAPIKeyMutex.Lock()
-			apikey := a.ambassadorAPIKey
-			a.ambassadorAPIKeyMutex.Unlock()
-
-			if err := a.comm.StreamMetrics(ctx, outMessage, apikey); err != nil {
-				dlog.Errorf(ctx, "error streaming metric(s): %+v", err)
-			}
-		}
-	}
-}
-
 // MetricsRelayHandler is invoked as a callback when the agent receive metrics from Envoy (sink).
 // It stores metrics in a.aggregatedMetrics
 func (a *Agent) MetricsRelayHandler(
 	ctx context.Context,
 	in *envoyMetrics.StreamMetricsMessage,
 ) {
-	if a.comm != nil && !a.reportingStopped {
-		metrics := in.GetEnvoyMetrics()
-		newMetrics := make([]*io_prometheus_client.MetricFamily, 0, len(metrics))
-		for _, metricFamily := range metrics {
-			for _, suffix := range allowedMetricsSuffixes {
-				if strings.HasSuffix(metricFamily.GetName(), suffix) {
-					newMetrics = append(newMetrics, metricFamily)
-					break
-				}
+	metrics := in.GetEnvoyMetrics()
+	newMetrics := make([]*io_prometheus_client.MetricFamily, 0, len(metrics))
+	for _, metricFamily := range metrics {
+		for _, suffix := range allowedMetricsSuffixes {
+			if strings.HasSuffix(metricFamily.GetName(), suffix) {
+				newMetrics = append(newMetrics, metricFamily)
+				break
 			}
 		}
+	}
 
-		p, ok := peer.FromContext(ctx)
-		if !ok {
-			dlog.Warnf(ctx, "peer not found in context")
-			return
-		}
-		instanceID := p.Addr.String()
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		dlog.Warnf(ctx, "peer not found in context")
+		return
+	}
+	instanceID := p.Addr.String()
 
-		// Store metrics. Overwrite old metrics from the same instance of edgisarry
-		dlog.Debugf(ctx, "Append %d metric(s) to stack from %s",
-			len(newMetrics), instanceID,
-		)
+	// Store metrics. Overwrite old metrics from the same instance of edgisarry
+	dlog.Debugf(ctx, "Append %d metric(s) to stack from %s",
+		len(newMetrics), instanceID,
+	)
 
-		if len(newMetrics) > 0 {
-			a.metricsRelayMutex.Lock()
-			a.aggregatedMetrics[instanceID] = newMetrics
-			a.metricsRelayMutex.Unlock()
-		}
+	if len(newMetrics) > 0 {
+		a.metricsRelayMutex.Lock()
+		a.aggregatedMetrics[instanceID] = newMetrics
+		a.metricsRelayMutex.Unlock()
 	}
 }
 

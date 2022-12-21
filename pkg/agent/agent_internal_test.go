@@ -308,6 +308,8 @@ func TestProcessSnapshot(t *testing.T) {
 			a := &Agent{}
 			ctx := dlog.NewTestContext(t, false)
 			a.connAddress = testcase.address
+			// Parsing the comm address was moved to the watch function.
+			a.parseCommAddr()
 			actualRet := a.ProcessSnapshot(ctx, testcase.inputSnap, "ambassador-host")
 
 			assert.Equal(t, testcase.ret, actualRet)
@@ -425,7 +427,8 @@ func TestProcessDiagnosticsSnapshot(t *testing.T) {
 			a := &Agent{}
 			ctx := dlog.NewTestContext(t, false)
 			a.connAddress = testcase.address
-
+			// Parsing the comm address was moved to the watch function.
+			a.parseCommAddr()
 			agentDiagnostics, actualRet := a.ProcessDiagnostics(ctx, testcase.inputDiagnostics, "ambassador-host")
 
 			assert.Equal(t, testcase.ret, actualRet)

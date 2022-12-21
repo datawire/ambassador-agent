@@ -81,10 +81,6 @@ func main() {
 		return metricsServer.Serve(ctx, metricsListener)
 	})
 
-	grp.Go("metrics-reporter", func(ctx context.Context) error {
-		return ambAgent.MetricsReporter(ctx)
-	})
-
 	// use a Go context so we can tell the leaderelection code when we
 	// want to step down
 	leaseCtx, leaseCancel := context.WithCancel(ctx)

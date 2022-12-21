@@ -72,7 +72,7 @@ unit-test:
 
 .PHONY: apply
 apply:
-	helm install ambassador-agent ./helm/ambassador-agent -n ambassador
+	helm install ambassador-agent ./helm/ambassador-agent -n ambassador --set image.pullPolicy=Always
 
 .PHONY: delete
 delete:
