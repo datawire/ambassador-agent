@@ -5,10 +5,10 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/datawire/dlib/dlog"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/datawire/ambassador-agent/pkg/agent"
+	"github.com/datawire/dlib/dlog"
 	amb "github.com/emissary-ingress/emissary/v3/pkg/api/getambassador.io/v3alpha1"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"

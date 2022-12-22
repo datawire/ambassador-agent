@@ -62,6 +62,7 @@ $(TOOLSDIR)/$(PROTOC_ZIP):
 # avoid them polluting our main go.mod file.
 tools/protoc-gen-go      = $(TOOLSBINDIR)/protoc-gen-go
 tools/protoc-gen-go-grpc = $(TOOLSBINDIR)/protoc-gen-go-grpc
+tools/golangci-lint      = $(TOOLSBINDIR)/golangci-lint
 tools/go-mkopensource    = $(TOOLSBINDIR)/go-mkopensource
 $(TOOLSBINDIR)/%: $(TOOLSSRCDIR)/%/go.mod $(TOOLSSRCDIR)/%/pin.go
 	cd $(<D) && GOOS= GOARCH= go build -o $(abspath $@) $$(sed -En 's,^import "(.*)".*,\1,p' pin.go)

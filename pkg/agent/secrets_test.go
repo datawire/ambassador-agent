@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	apiv1 "k8s.io/api/core/v1"
 	errorsv1 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"strings"
-	"testing"
 )
 
 func TestRunWithClientFactorySet(t *testing.T) {
@@ -43,7 +44,6 @@ func TestRunWithClientFactorySet(t *testing.T) {
 		assert.NoError(t, err, "no error")
 		assert.Equal(t, len(createdSecret.Data), 0)
 		assert.Equal(t, 4, len(secretGetter.secrets), "empty secret created")
-
 	})
 	t.Run("Success", func(t *testing.T) {
 		// given
@@ -144,7 +144,6 @@ func TestRunWithClientFactoryDelete(t *testing.T) {
 		// then
 		assert.Error(t, err, "fail when client error")
 	})
-
 }
 
 func wrapNewCommand(name string, action secretSyncAction, secret map[string][]byte) *secretSyncCommand {
@@ -267,7 +266,7 @@ func (s *secretGetterMock) Patch(
 		return nil, fmt.Errorf("random error")
 	}
 
-	var existingSecret = s.findSecret(name)
+	existingSecret := s.findSecret(name)
 
 	if existingSecret == nil {
 		return nil, &errorsv1.StatusError{
@@ -295,7 +294,6 @@ func (s *secretGetterMock) Patch(
 		default:
 			delete(existingSecret.Data, key)
 		}
-
 	}
 
 	return existingSecret, nil

@@ -75,6 +75,7 @@ func (s *mockStreamDiagnosticsClient) Send(chunk *agent.RawDiagnosticsChunk) err
 	s.content = append(s.content, chunk.Chunk...)
 	return nil
 }
+
 func (s *mockStreamDiagnosticsClient) CloseAndRecv() (*agent.DiagnosticsResponse, error) {
 	return nil, nil
 }
@@ -112,6 +113,7 @@ func (s *mockStreamMetricsClient) Send(msg *agent.StreamMetricsMessage) error {
 	s.parent.SentMetrics = append(s.parent.SentMetrics, msg)
 	return nil
 }
+
 func (s *mockStreamMetricsClient) CloseAndRecv() (*agent.StreamMetricsResponse, error) {
 	return nil, nil
 }
@@ -134,6 +136,7 @@ func (s *mockReportStreamClient) Send(chunk *agent.RawSnapshotChunk) error {
 	s.content = append(s.content, chunk.Chunk...)
 	return nil
 }
+
 func (s *mockReportStreamClient) CloseAndRecv() (*agent.SnapshotResponse, error) {
 	var snapshot agent.Snapshot
 	if err := json.Unmarshal(s.content, &snapshot); err != nil {
@@ -231,7 +234,7 @@ func TestConnInfo(t *testing.T) {
 
 	defaults := []string{
 		"",
-		fmt.Sprintf("https://%s:%s/", defaultHostname, defaultPort),
+		fmt.Sprintf("https://%s:%s/", defaultHostname, defaultPort), //nolint:nosprintfhostport // defaultHostname can never be an IP
 		"a bogus value that looks like a path",
 	}
 

@@ -5,9 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/getkin/kin-openapi/openapi2"
-	"github.com/getkin/kin-openapi/openapi2conv"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -16,12 +14,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi2"
+	"github.com/getkin/kin-openapi/openapi2conv"
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/pkg/errors"
+
 	"github.com/datawire/dlib/dlog"
 	amb "github.com/emissary-ingress/emissary/v3/pkg/api/getambassador.io/v3alpha1"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
-	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/pkg/errors"
 )
 
 // APIDocsStore is responsible for collecting the API docs from Mapping resources in a k8s cluster.
@@ -99,7 +100,7 @@ func getProcessableMappingsFromSnapshot(snapshot *snapshotTypes.Snapshot) []*amb
 			continue
 		}
 		mappingDocs := mapping.Spec.Docs
-		if mappingDocs == nil || (mappingDocs.Ignored != nil && *mappingDocs.Ignored == true) {
+		if mappingDocs == nil || (mappingDocs.Ignored != nil && *mappingDocs.Ignored) {
 			continue
 		}
 		processableMappings = append(processableMappings, mapping)
@@ -215,7 +216,15 @@ func extractQueryableDocsURL(mapping *amb.Mapping) (*url.URL, error) {
 	return mappingsDocsURL, nil
 }
 
-func (a *APIDocsStore) getDoc(ctx context.Context, queryURL *url.URL, queryHost string, queryHeaders []Header, publicHost string, prefix string, keepExistingPrefix bool) *openAPIDoc {
+func (a *APIDocsStore) getDoc(
+	ctx context.Context,
+	queryURL *url.URL,
+	queryHost string,
+	queryHeaders []Header,
+	publicHost string,
+	prefix string,
+	keepExistingPrefix bool,
+) *openAPIDoc {
 	b, err := a.Client.Get(ctx, queryURL, queryHost, queryHeaders)
 	if err != nil {
 		dlog.Errorf(ctx, "get failed %s: %v", queryURL, err)
@@ -228,7 +237,7 @@ func (a *APIDocsStore) getDoc(ctx context.Context, queryURL *url.URL, queryHost 
 	return nil
 }
 
-// openAPIDoc represent a typed OpenAPI/Swagger document
+// openAPIDoc represent a typed OpenAPI/Swagger document.
 type openAPIDoc struct {
 	// The actual OpenAPI/Swagger document in JSON
 	JSON []byte
@@ -239,12 +248,11 @@ type openAPIDoc struct {
 }
 
 // openAPIDoc constructor from raw bytes.
-// The baseURL and prefix are used to edit the original document with server information to query the API publicly
+// The baseURL and prefix are used to edit the original document with server information to query the API publicly.
 func newOpenAPI(ctx context.Context, docBytes []byte, baseURL string, prefix string, keepExistingPrefix bool) *openAPIDoc {
 	dlog.Debugf(ctx, "Trying to create new OpenAPI doc: base_url=%q prefix=%q", baseURL, prefix)
 
 	doc, err := parseToOpenAPIV3(docBytes)
-
 	if err != nil {
 		dlog.Errorln(ctx, "failed to force open api contract to v3:", err)
 		return nil
@@ -276,7 +284,6 @@ func newOpenAPI(ctx context.Context, docBytes []byte, baseURL string, prefix str
 				keepExistingPrefix &&
 				prefixTrim != existingPrefixTrim &&
 				!strings.HasSuffix(prefixTrim, existingPrefixTrim) {
-
 				base.Path = path.Join(base.Path, prefix, existingPrefix)
 			} else {
 				base.Path = path.Join(base.Path, prefix)
@@ -301,7 +308,6 @@ func newOpenAPI(ctx context.Context, docBytes []byte, baseURL string, prefix str
 		Type:    "OpenAPI",
 		Version: "v3",
 	}
-
 }
 
 func parseToOpenAPIV3(docBytes []byte) (*openapi3.T, error) {
@@ -394,7 +400,7 @@ func (c *apiDocsHTTPClient) Get(ctx context.Context, requestURL *url.URL, reques
 	ctx = dlog.WithField(ctx, "url", requestURL)
 	ctx = dlog.WithField(ctx, "host", requestHost)
 
-	req, err := http.NewRequest("GET", requestURL.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, requestURL.String(), nil)
 	if err != nil {
 		dlog.Error(ctx, err)
 		return nil, err
@@ -406,11 +412,9 @@ func (c *apiDocsHTTPClient) Get(ctx context.Context, requestURL *url.URL, reques
 		req.Host = requestHost
 	}
 
-	if requestHeaders != nil {
-		for _, queryHeader := range requestHeaders {
-			dlog.Debugf(ctx, "Adding header %s=%s", queryHeader.Name, queryHeader.Value)
-			req.Header.Set(queryHeader.Name, queryHeader.Value)
-		}
+	for _, queryHeader := range requestHeaders {
+		dlog.Debugf(ctx, "Adding header %s=%s", queryHeader.Name, queryHeader.Value)
+		req.Header.Set(queryHeader.Name, queryHeader.Value)
 	}
 
 	res, err := c.Do(req)
@@ -420,12 +424,12 @@ func (c *apiDocsHTTPClient) Get(ctx context.Context, requestURL *url.URL, reques
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != 200 {
+	if res.StatusCode != http.StatusOK {
 		dlog.Errorf(ctx, "Bad HTTP request: status_code=%v", res.StatusCode)
 		return nil, fmt.Errorf("HTTP error %d from %s", res.StatusCode, requestURL)
 	}
 
-	buf, err := ioutil.ReadAll(res.Body)
+	buf, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read HTTP response body")
 	}
@@ -447,7 +451,7 @@ type docsDiffCalculator struct {
 	current  mappingDocMap
 }
 
-// newMappingDocsCalculator creates a new diff calculator for mapping docs
+// newMappingDocsCalculator creates a new diff calculator for mapping docs.
 func newMappingDocsCalculator(known []docMappingRef) *docsDiffCalculator {
 	knownMap := make(mappingDocMap)
 	for _, m := range known {
@@ -456,13 +460,13 @@ func newMappingDocsCalculator(known []docMappingRef) *docsDiffCalculator {
 	return &docsDiffCalculator{current: make(mappingDocMap), previous: knownMap}
 }
 
-// After retrieving all known mappings, newRound will return list of mapping docs to delete
+// After retrieving all known mappings, newRound will return list of mapping docs to delete.
 func (d *docsDiffCalculator) newRound() []string {
 	mappingUIDsToDelete := make([]string, 0)
 
 	for previousRef := range d.previous {
 		if !d.current[previousRef] {
-			mappingUIDsToDelete = append(mappingUIDsToDelete, string(previousRef))
+			mappingUIDsToDelete = append(mappingUIDsToDelete, previousRef)
 		}
 	}
 	d.previous = d.current
@@ -471,7 +475,7 @@ func (d *docsDiffCalculator) newRound() []string {
 	return mappingUIDsToDelete
 }
 
-// add a MappingDoc that was successfully retrieved this round
+// add a MappingDoc that was successfully retrieved this round.
 func (d *docsDiffCalculator) add(ctx context.Context, dm *docMappingRef) {
 	if dm != nil && dm.Ref != nil {
 		dlog.Debugf(ctx, "Adding Mapping Docs diff reference %s", dm)
@@ -479,7 +483,7 @@ func (d *docsDiffCalculator) add(ctx context.Context, dm *docMappingRef) {
 	}
 }
 
-// deleteOld deletes old MappingDocs that are no longer present
+// deleteOld deletes old MappingDocs that are no longer present.
 func (d *docsDiffCalculator) deleteOld(ctx context.Context, store *inMemoryStore) {
 	for _, mappingUID := range d.newRound() {
 		dlog.Debugf(ctx, "Deleting old Mapping Docs %s", mappingUID)
@@ -528,7 +532,7 @@ func (s *inMemoryStore) getAll() []*docsRef {
 	s.entriesMutex.RLock()
 	defer s.entriesMutex.RUnlock()
 
-	var dr []*docsRef
+	dr := make([]*docsRef, 0, len(s.entries))
 	for _, e := range s.entries {
 		dr = append(dr, e)
 	}

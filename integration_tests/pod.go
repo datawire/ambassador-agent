@@ -15,7 +15,7 @@ import (
 	"k8s.io/kubectl/pkg/cmd/exec"
 )
 
-// NewPodLogChan returns a chan with the specified pods logs entry-by-entry
+// NewPodLogChan returns a chan with the specified pods logs entry-by-entry.
 func NewPodLogChan(ctx context.Context, cs *kubernetes.Clientset, name, ns string, follow bool) (<-chan string, error) {
 	var (
 		client = cs.CoreV1().Pods(ns)
@@ -44,7 +44,7 @@ func NewPodLogChan(ctx context.Context, cs *kubernetes.Clientset, name, ns strin
 	return c, nil
 }
 
-// PodExec provides the functionality of `kubectl exec -n ns podName -- cmd...`
+// PodExec provides the functionality of `kubectl exec -n ns podName -- cmd...`.
 func PodExec(config *rest.Config, ns, podName string, cmd ...string) (stdout, stderr []byte, err error) {
 	if config.APIPath == "" {
 		config.APIPath = "/api"

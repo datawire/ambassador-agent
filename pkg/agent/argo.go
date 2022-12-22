@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 )
 
 // RolloutStore is responsible for collecting the state transition and the
@@ -50,7 +51,7 @@ func (a *ApplicationStore) Deltas() []*kates.Delta {
 }
 
 // StateOfWorld will convert the internal state of the world into a
-// []*unstructured.Unstructured
+// []*unstructured.Unstructured.
 func (a *ApplicationStore) StateOfWorld() []*unstructured.Unstructured {
 	results := []*unstructured.Unstructured{}
 	for _, v := range a.sotw {
@@ -59,7 +60,7 @@ func (a *ApplicationStore) StateOfWorld() []*unstructured.Unstructured {
 	return results
 }
 
-// FromCallback will populate and return an Application store based on a GenericCallback
+// FromCallback will populate and return an Application store based on a GenericCallback.
 func (a *ApplicationStore) FromCallback(callback *GenericCallback) (*ApplicationStore, error) {
 	a.mux.Lock()
 	defer a.mux.Unlock()
@@ -91,7 +92,7 @@ func (s *RolloutStore) Deltas() []*kates.Delta {
 }
 
 // StateOfWorld will convert the internal state of the world into a
-// []*unstructured.Unstructured
+// []*unstructured.Unstructured.
 func (a *RolloutStore) StateOfWorld() []*unstructured.Unstructured {
 	results := []*unstructured.Unstructured{}
 	for _, v := range a.sotw {
@@ -100,7 +101,7 @@ func (a *RolloutStore) StateOfWorld() []*unstructured.Unstructured {
 	return results
 }
 
-// FromCallback will populate and return a Rollout store based on a GenericCallback
+// FromCallback will populate and return a Rollout store based on a GenericCallback.
 func (r *RolloutStore) FromCallback(callback *GenericCallback) (*RolloutStore, error) {
 	r.mux.Lock()
 	defer r.mux.Unlock()

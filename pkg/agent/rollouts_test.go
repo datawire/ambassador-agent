@@ -2,14 +2,16 @@ package agent
 
 import (
 	context "context"
+	"testing"
+
 	alpha1 "github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
 	"github.com/argoproj/argo-rollouts/pkg/client/clientset/versioned/typed/rollouts/v1alpha1"
-	"github.com/datawire/dlib/dlog"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
-	"testing"
+
+	"github.com/datawire/dlib/dlog"
 )
 
 type mockRolloutsGetter struct {

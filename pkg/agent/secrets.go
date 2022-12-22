@@ -54,7 +54,7 @@ func (s *secretSyncCommand) RunWithClientFactory(
 }
 
 func (s *secretSyncCommand) getOps(insertRoot bool) ([]map[string]interface{}, error) {
-	var ops = make([]map[string]interface{}, 0)
+	ops := make([]map[string]interface{}, 0)
 	// if the secret is empty, this is required.
 	if insertRoot {
 		ops = append(ops, map[string]interface{}{
@@ -98,7 +98,7 @@ func (s *secretSyncCommand) syncSecret(ctx context.Context, client SecretInterfa
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			if s.action == secretSyncActionSet {
-				secret, err = client.Create(ctx, &apiv1.Secret{
+				_, err = client.Create(ctx, &apiv1.Secret{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      s.name,
@@ -112,20 +112,17 @@ func (s *secretSyncCommand) syncSecret(ctx context.Context, client SecretInterfa
 					return fmt.Errorf("failed to create the secret: %w", err)
 				}
 			}
-
 			return nil
 		}
 		return fmt.Errorf("failed to get the secret %s: %w", s.name, err)
 	}
 
 	ops, err := s.getOps(len(secret.Data) == 0)
-
 	if err != nil {
 		return fmt.Errorf("failed to generate required update operations: %w", err)
 	}
 
 	opsJSON, err := json.Marshal(ops)
-
 	if err != nil {
 		return fmt.Errorf("failed to generate patch ops: %w", err)
 	}
@@ -139,7 +136,6 @@ func (s *secretSyncCommand) syncSecret(ctx context.Context, client SecretInterfa
 	// if no keys left, we should delete the secret.
 	if len(secret.Data) == 0 {
 		err := client.Delete(ctx, s.name, metav1.DeleteOptions{})
-
 		if err != nil {
 			return fmt.Errorf("failed to clean up the secret %s: %w", s.name, err)
 		}

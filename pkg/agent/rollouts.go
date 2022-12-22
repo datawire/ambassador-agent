@@ -3,22 +3,24 @@ package agent
 import (
 	"context"
 	"fmt"
+
 	argov1alpha1 "github.com/argoproj/argo-rollouts/pkg/client/clientset/versioned/typed/rollouts/v1alpha1"
-	"github.com/datawire/dlib/dlog"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/datawire/dlib/dlog"
 )
 
-// rolloutAction indicates the action to be performed on a Rollout object
+// rolloutAction indicates the action to be performed on a Rollout object.
 type rolloutAction string
 
 const (
-	// rolloutActionPause represents the "pause" action on a Rollout
+	// rolloutActionPause represents the "pause" action on a Rollout.
 	rolloutActionPause = rolloutAction("PAUSE")
-	// rolloutActionResume represents the "resume" action on a Rollout
+	// rolloutActionResume represents the "resume" action on a Rollout.
 	rolloutActionResume = rolloutAction("RESUME")
-	// rolloutActionAbort represents the "abort" action on a Rollout
+	// rolloutActionAbort represents the "abort" action on a Rollout.
 	rolloutActionAbort = rolloutAction("ABORT")
 )
 
@@ -45,10 +47,12 @@ func (r *rolloutCommand) RunWithClientFactory(ctx context.Context, rolloutsClien
 	return r.patchRollout(ctx, client)
 }
 
-const unpausePatch = `{"spec":{"paused":false}}`
-const abortPatch = `{"status":{"abort":true}}`
-const retryPatch = `{"status":{"abort":false}}`
-const pausePatch = `{"spec":{"paused":true}}`
+const (
+	unpausePatch = `{"spec":{"paused":false}}`
+	abortPatch   = `{"status":{"abort":true}}`
+	retryPatch   = `{"status":{"abort":false}}`
+	pausePatch   = `{"spec":{"paused":true}}`
+)
 
 func (r *rolloutCommand) patchRollout(ctx context.Context, client argov1alpha1.RolloutsGetter) error {
 	var err error

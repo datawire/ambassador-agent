@@ -12,12 +12,13 @@ import (
 	"testing"
 	"time"
 
-	itest "github.com/datawire/ambassador-agent/integration_tests"
-	"github.com/datawire/dlib/dlog"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	itest "github.com/datawire/ambassador-agent/integration_tests"
+	"github.com/datawire/dlib/dlog"
 )
 
 const (
@@ -59,7 +60,6 @@ func (s *AESTestSuite) SetupSuite() {
 	s.namespace = "ambassador-test"
 	s.name = "ambassador-agent"
 	s.ctx = dlog.NewTestContext(s.T(), false)
-	//s.tempDir = s.T().TempDir()
 	s.tempDir, _ = os.MkdirTemp("", "")
 
 	kubeconfigPath := os.Getenv("KUBECONFIG")

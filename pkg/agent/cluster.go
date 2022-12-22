@@ -6,10 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/datawire/dlib/dlog"
 	"github.com/google/uuid"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/datawire/dlib/dlog"
 )
 
 func GetClusterID(ctx context.Context, client *kubernetes.Clientset, nsName string) string {

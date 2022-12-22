@@ -3,11 +3,12 @@ package agent_test
 import (
 	"testing"
 
-	"github.com/datawire/ambassador-agent/pkg/agent"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/datawire/ambassador-agent/pkg/agent"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 )
 
 func TestCoreStore(t *testing.T) {

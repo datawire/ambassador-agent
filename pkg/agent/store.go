@@ -3,8 +3,9 @@ package agent
 import (
 	"fmt"
 
-	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 )
 
 type configMapStore struct {

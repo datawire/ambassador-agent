@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
-	itest "github.com/datawire/ambassador-agent/integration_tests"
-	"github.com/datawire/dlib/dlog"
 	"github.com/stretchr/testify/suite"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+
+	itest "github.com/datawire/ambassador-agent/integration_tests"
+	"github.com/datawire/dlib/dlog"
 )
 
 const (
@@ -74,7 +75,7 @@ func (s *CloudTokenTestSuite) TearDownSuite() {
 	err := s.uninstallHelmChart(s.ctx)
 	s.Require().NoError(err)
 
-	s.clientset.CoordinationV1().Leases(s.namespace).
+	_ = s.clientset.CoordinationV1().Leases(s.namespace).
 		Delete(s.ctx, "ambassador-agent-lease-lock", v1.DeleteOptions{})
 
 	time.Sleep(time.Second)

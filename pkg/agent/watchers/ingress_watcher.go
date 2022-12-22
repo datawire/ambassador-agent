@@ -4,8 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/datawire/k8sapi/pkg/k8sapi"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	extv1beta1 "k8s.io/api/extensions/v1beta1"
@@ -14,6 +12,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/pkg/apis/networking"
+
+	"github.com/datawire/k8sapi/pkg/k8sapi"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
 )
 
 type ingressWatcher interface {
@@ -158,14 +159,14 @@ func getIngressWatcher(ctx context.Context, clientset *kubernetes.Clientset, nam
 		netClient := clientset.NetworkingV1().RESTClient()
 		watcher := k8sapi.NewWatcherGroup[*networking.Ingress]()
 		for _, ns := range namespaces {
-			watcher.AddWatcher(k8sapi.NewWatcher("ingresses", ns, netClient, &networking.Ingress{}, cond, nil))
+			_ = watcher.AddWatcher(k8sapi.NewWatcher("ingresses", ns, netClient, &networking.Ingress{}, cond, nil))
 		}
 		return &networkWatcher{watcher: watcher, om: om}
 	}
 	netClient := clientset.ExtensionsV1beta1().RESTClient()
 	watcher := k8sapi.NewWatcherGroup[*k8s_resource_types.Ingress]()
 	for _, ns := range namespaces {
-		watcher.AddWatcher(k8sapi.NewWatcher("ingresses", ns, netClient, &k8s_resource_types.Ingress{}, cond, nil))
+		_ = watcher.AddWatcher(k8sapi.NewWatcher("ingresses", ns, netClient, &k8s_resource_types.Ingress{}, cond, nil))
 	}
 	return watcher
 }

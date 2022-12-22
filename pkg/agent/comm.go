@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/datawire/ambassador-agent/pkg/api/agent"
@@ -76,13 +77,13 @@ func NewComm(
 	opts := make([]grpc.DialOption, 0, 1)
 	address := connInfo.hostname + ":" + connInfo.port
 
+	var creds credentials.TransportCredentials
 	if connInfo.secure {
-		config := &tls.Config{ServerName: connInfo.hostname}
-		creds := credentials.NewTLS(config)
-		opts = append(opts, grpc.WithTransportCredentials(creds))
+		creds = credentials.NewTLS(&tls.Config{ServerName: connInfo.hostname})
 	} else {
-		opts = append(opts, grpc.WithInsecure())
+		creds = insecure.NewCredentials()
 	}
+	opts = append(opts, grpc.WithTransportCredentials(creds))
 
 	dlog.Debugf(ctx, "Dialing server at %s (secure=%t)", address, connInfo.secure)
 
@@ -103,7 +104,7 @@ func NewComm(
 		rptWake:      make(chan struct{}, 1),
 		extraHeaders: extraHeaders,
 	}
-	retCtx = metadata.AppendToOutgoingContext(ctx, c.getHeaders(apiKey)...)
+	retCtx = metadata.AppendToOutgoingContext(retCtx, c.getHeaders(apiKey)...)
 
 	go c.retrieveLoop(retCtx)
 
@@ -112,7 +113,8 @@ func NewComm(
 
 func (c *RPCComm) getHeaders(apiKey string) []string {
 	return append([]string{
-		APIKeyMetadataKey, apiKey}, c.extraHeaders...)
+		APIKeyMetadataKey, apiKey,
+	}, c.extraHeaders...)
 }
 
 func (c *RPCComm) retrieveLoop(ctx context.Context) {
@@ -134,7 +136,6 @@ func (c *RPCComm) retrieveLoop(ctx context.Context) {
 
 func (c *RPCComm) retrieve(ctx context.Context) error {
 	stream, err := c.client.Retrieve(ctx, c.agentID)
-
 	if err != nil {
 		return err
 	}
@@ -221,7 +222,6 @@ func (c *RPCComm) StreamMetrics(ctx context.Context, metrics *agent.StreamMetric
 	defer c.metricsStreamWriterMutex.Unlock()
 	ctx = metadata.AppendToOutgoingContext(ctx, c.getHeaders(apiKey)...)
 	streamClient, err := c.client.StreamMetrics(ctx)
-
 	if err != nil {
 		return err
 	}

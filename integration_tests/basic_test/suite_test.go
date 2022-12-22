@@ -6,14 +6,15 @@ import (
 	"testing"
 	"time"
 
-	itest "github.com/datawire/ambassador-agent/integration_tests"
-	"github.com/datawire/dlib/dlog"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	itest "github.com/datawire/ambassador-agent/integration_tests"
+	"github.com/datawire/dlib/dlog"
 )
 
 const (
@@ -67,13 +68,16 @@ func (s *BasicTestSuite) SetupSuite() {
 		"%s needs to be set", agentImageEnvVar,
 	)
 
-	s.clientset.CoreV1().Namespaces().
-		Create(s.ctx, &corev1.Namespace{
-			ObjectMeta: v1.ObjectMeta{
-				Name: "ambassador-test",
-			}},
+	_, err = s.clientset.CoreV1().Namespaces().
+		Create(s.ctx,
+			&corev1.Namespace{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "ambassador-test",
+				},
+			},
 			v1.CreateOptions{},
 		)
+	s.Require().NoError(err)
 
 	s.agentComServer, err = itest.NewAgentCom("agentcom-server", s.namespace, s.config)
 	s.Require().NoError(err)
@@ -113,7 +117,7 @@ func (s *BasicTestSuite) TearDownSuite() {
 	}
 
 	// left over from the helm chart installation
-	s.clientset.CoordinationV1().Leases(s.namespace).
+	_ = s.clientset.CoordinationV1().Leases(s.namespace).
 		Delete(s.ctx, "ambassador-agent-lease-lock", v1.DeleteOptions{})
 
 	time.Sleep(time.Second)

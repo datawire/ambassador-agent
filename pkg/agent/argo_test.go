@@ -5,12 +5,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/datawire/ambassador-agent/pkg/agent"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/datawire/ambassador-agent/pkg/agent"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 )
 
 func newGenericCallback(apiVersion, kind, name string, eventType agent.CallbackEventType) *agent.GenericCallback {
@@ -59,6 +60,7 @@ func TestRolloutStore(t *testing.T) {
 		assert.Equal(t, 10, len(sotw))
 	})
 }
+
 func TestApplicationStore(t *testing.T) {
 	t.Run("will populate the rolloutstore successfully", func(t *testing.T) {
 		// given
@@ -88,5 +90,4 @@ func TestApplicationStore(t *testing.T) {
 		sotw := as.StateOfWorld()
 		assert.Equal(t, 10, len(sotw))
 	})
-
 }

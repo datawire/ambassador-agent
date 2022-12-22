@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-
 	"net/http"
 	"net/url"
 	"os"
@@ -13,15 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/datawire/ambassador-agent/pkg/agent/watchers"
-	"github.com/datawire/ambassador-agent/pkg/api/agent"
-	"github.com/datawire/dlib/dlog"
-	"github.com/datawire/k8sapi/pkg/k8sapi"
-	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
-	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
-	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 	"github.com/pkg/errors"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"google.golang.org/grpc/peer"
@@ -32,9 +22,19 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/datawire/ambassador-agent/pkg/agent/watchers"
+	"github.com/datawire/ambassador-agent/pkg/api/agent"
+	"github.com/datawire/dlib/dlog"
+	"github.com/datawire/k8sapi/pkg/k8sapi"
+	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
+	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
+	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
+
 	"k8s.io/client-go/kubernetes"
 
-	// load all auth plugins
+	// load all auth plugins.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
@@ -184,7 +184,7 @@ func NewAgent(
 		}
 	}
 
-	var rpcExtraHeaders = make([]string, 0)
+	rpcExtraHeaders := make([]string, 0)
 
 	if os.Getenv("RPC_INTERCEPT_HEADER_KEY") != "" &&
 		os.Getenv("RPC_INTERCEPT_HEADER_VALUE") != "" {
@@ -203,8 +203,8 @@ func NewAgent(
 	return &Agent{
 		minReportPeriod: reportPeriod,
 		reportComplete:  make(chan error),
-		//metricsReportComplete:     make(chan error),
-		//diagnosticsReportComplete: make(chan error),
+		// metricsReportComplete:     make(chan error),
+		// diagnosticsReportComplete: make(chan error),
 
 		ambassadorAPIKey: os.Getenv(cloudConnectTokenKey),
 		// store this same value in a different variable, so that if ambassadorAPIKey gets
@@ -301,7 +301,6 @@ func parseAmbassadorAdminHost(rawurl string) (string, error) {
 		return "", err
 	}
 	return url.Hostname(), nil
-
 }
 
 func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
@@ -356,7 +355,7 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 				continue
 			}
 			dlog.Infof(ctx, "Setting cloud connect token from configmap: %s", cm.GetName())
-			maybeResetComm(string(connTokenBytes), a)
+			maybeResetComm(connTokenBytes, a)
 			return
 		}
 	}
@@ -364,7 +363,7 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	// so if we got here, we know something changed, but a config map
 	// nor a secret exist, which means they never existed or they got
 	// deleted. in this case, we fall back to the env var (which is
-	// likely empty, so in that case, that is basically equivelant to
+	// likely empty, so in that case, that is basically equivalent to
 	// turning the agent "off")
 	dlog.Infof(ctx, "Setting cloud connect token from environment")
 	if a.ambassadorAPIKeyEnvVarValue == "" {
@@ -426,14 +425,15 @@ func (a *Agent) waitForAPIKey(ctx context.Context, ch <-chan struct{}) {
 	}
 }
 
-// watch is a syncronous function.
+// watch is a synchronous function.
 // It uses channels to watch for config changes, if none are firing,
-// a report is maybe sent. Atomic booleans are used to interval reporting
-func (a *Agent) watch(
+// a report is maybe sent. Atomic booleans are used to interval reporting.
+func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 	ctx context.Context,
 	snapshotURL, diagnosticsURL, ambHost string,
 	configCh, ambCh <-chan struct{},
-	rolloutCallback, applicationCallback <-chan *GenericCallback) error {
+	rolloutCallback, applicationCallback <-chan *GenericCallback,
+) error {
 	var err error
 	a.apiDocsStore = NewAPIDocsStore()
 	applicationStore := NewApplicationStore()
@@ -533,7 +533,6 @@ func (a *Agent) watch(
 			// a change in endpoint configuration.
 			newComm, err := NewComm(
 				ctx, a.connInfo, a.agentID, a.ambassadorAPIKey, a.rpcExtraHeaders)
-
 			if err != nil {
 				dlog.Warnf(ctx, "Failed to dial the DCP: %v", err)
 				dlog.Warn(ctx, "DCP functionality disabled until next retry")
@@ -550,7 +549,8 @@ func (a *Agent) watch(
 			// Don't report if the Director told us to stop reporting, if we are
 			// already sending a report or waiting for the minimum time between
 			// reports, or if there is nothing new to report right now.
-			dlog.Debugf(ctx, "Not reporting snapshot [reporting stopped = %t] [report running = %t] [report to send is nil = %t]", a.reportingStopped, a.reportRunning.Value(), (a.reportToSend == nil))
+			dlog.Debugf(ctx, "Not reporting snapshot [reporting stopped = %t] [report running = %t] [report to send is nil = %t]",
+				a.reportingStopped, a.reportRunning.Value(), (a.reportToSend == nil))
 		}
 
 		// only get diagnostics and metrics from edgissary if it is present
@@ -686,7 +686,7 @@ func (a *Agent) ReportDiagnostics(ctx context.Context, diagnosticsURL, ambHost s
 	}(ctx, agentDiagnostics, a.minReportPeriod, a.ambassadorAPIKey) // minReportPeriod is the one set for snapshots
 }
 
-// ReportMetrics sends and resets a.aggregatedMetrics
+// ReportMetrics sends and resets a.aggregatedMetrics.
 func (a *Agent) ReportMetrics(ctx context.Context) {
 	// save, then reset a.aggregatedMetrics
 	a.metricsRelayMutex.Lock()
@@ -713,7 +713,7 @@ func (a *Agent) ReportMetrics(ctx context.Context) {
 	go a.reportMetrics(ctx, outMessage, a.minReportPeriod, a.ambassadorAPIKey) // minReportPeriod is the one set for snapshots
 }
 
-// reportMetrics is meant to be called asyncronously, using pinned values as parameters
+// reportMetrics is meant to be called asyncronously, using pinned values as parameters.
 func (a *Agent) reportMetrics(ctx context.Context, metricsReport *agent.StreamMetricsMessage, delay time.Duration, apikey string) {
 	err := a.comm.StreamMetrics(ctx, metricsReport, apikey)
 	if err != nil {
@@ -796,9 +796,10 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 	return nil
 }
 
-// ProcessDiagnostics translates ambassadors diagnostics into streamable agent diagnostics
+// ProcessDiagnostics translates ambassadors diagnostics into streamable agent diagnostics.
 func (a *Agent) ProcessDiagnostics(ctx context.Context, diagnostics *diagnosticsTypes.Diagnostics,
-	ambHost string) (*agent.Diagnostics, error) {
+	ambHost string,
+) (*agent.Diagnostics, error) {
 	if diagnostics == nil {
 		dlog.Warn(ctx, "No diagnostics found, not reporting.")
 		return nil, nil
@@ -832,10 +833,10 @@ func (a *Agent) ProcessDiagnostics(ctx context.Context, diagnostics *diagnostics
 	return diagnosticsReport, nil
 }
 
-var allowedMetricsSuffixes = []string{"upstream_rq_total", "upstream_rq_time", "upstream_rq_5xx"}
+var allowedMetricsSuffixes = []string{"upstream_rq_total", "upstream_rq_time", "upstream_rq_5xx"} //nolint:gochecknoglobals // constant
 
 // MetricsRelayHandler is invoked as a callback when the agent receive metrics from Envoy (sink).
-// It stores metrics in a.aggregatedMetrics
+// It stores metrics in a.aggregatedMetrics.
 func (a *Agent) MetricsRelayHandler(
 	ctx context.Context,
 	in *envoyMetrics.StreamMetricsMessage,

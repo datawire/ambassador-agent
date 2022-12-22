@@ -5,8 +5,9 @@ import (
 	"strings"
 	"time"
 
-	itest "github.com/datawire/ambassador-agent/integration_tests"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	itest "github.com/datawire/ambassador-agent/integration_tests"
 )
 
 func (s *AESTestSuite) TestAgentInstallation() {

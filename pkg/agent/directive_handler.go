@@ -103,7 +103,6 @@ func (dh *BasicDirectiveHandler) handleSecretSyncCommand(
 	}
 
 	dh.reportCommandResult(ctx, commandID, cmd, err, a)
-
 }
 
 func (dh *BasicDirectiveHandler) handleRolloutCommand(
