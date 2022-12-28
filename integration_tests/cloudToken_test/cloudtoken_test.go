@@ -5,9 +5,10 @@ import (
 	"strings"
 	"time"
 
-	itest "github.com/datawire/ambassador-agent/integration_tests"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	itest "github.com/datawire/ambassador-agent/integration_tests"
 )
 
 func (s *CloudTokenTestSuite) TestCloudToken() {
@@ -25,7 +26,7 @@ func (s *CloudTokenTestSuite) TestCloudToken() {
 	s.Require().NoError(err)
 
 	defer func() {
-		s.clientset.CoreV1().Secrets(s.namespace).Delete(s.ctx, secret.ObjectMeta.Name, metav1.DeleteOptions{})
+		_ = s.clientset.CoreV1().Secrets(s.namespace).Delete(s.ctx, secret.ObjectMeta.Name, metav1.DeleteOptions{})
 	}()
 
 	time.Sleep(15 * time.Second)

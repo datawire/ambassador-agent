@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"time"
 
-	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
+	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 )
 
 func (s *BasicTestSuite) TestInitialSnapshot() {

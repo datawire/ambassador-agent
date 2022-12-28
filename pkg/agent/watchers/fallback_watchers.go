@@ -4,11 +4,12 @@ import (
 	"context"
 	"sync"
 
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/datawire/dlib/dlog"
 	"github.com/datawire/k8sapi/pkg/k8sapi"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
-	"k8s.io/client-go/kubernetes"
 )
 
 type FallbackWatchers struct {
@@ -35,7 +36,7 @@ func NewFallbackWatcher(ctx context.Context, clientset *kubernetes.Clientset, na
 	}
 
 	for _, ns := range namespaces {
-		siWatcher.serviceWatchers.AddWatcher(k8sapi.NewWatcher("services", ns, coreClient, &kates.Service{}, cond, nil))
+		_ = siWatcher.serviceWatchers.AddWatcher(k8sapi.NewWatcher("services", ns, coreClient, &kates.Service{}, cond, nil))
 	}
 
 	return siWatcher

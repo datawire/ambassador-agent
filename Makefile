@@ -17,6 +17,13 @@ build:
 	-o=ambassador-agent \
 	./cmd/main.go
 
+.PHONY: format
+format: $(tools/golangci-lint) ## (QA) Automatically fix linter complaints
+	$(tools/golangci-lint) run --fix --timeout 2m ./... || true
+
+lint: $(tools/golangci-lint) ## (QA) Run the linter
+	$(tools/golangci-lint) run --timeout 8m ./...
+
 .PHONY: generate
 generate: ## (Generate) Update generated files that get checked in to Git
 generate: generate-clean

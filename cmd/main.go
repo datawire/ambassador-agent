@@ -15,7 +15,7 @@ import (
 	"github.com/datawire/dlib/dlog"
 )
 
-// internal k8s service
+// internal k8s service.
 const (
 	AdminDiagnosticsPort     = 8877
 	DefaultSnapshotURLFmt    = "http://ambassador-admin:%d/snapshot-external"

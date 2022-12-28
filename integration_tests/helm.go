@@ -56,5 +56,4 @@ func InstallHelmChart(ctx context.Context, config InstallationConfig) (CleanupFu
 		_, err := action.NewUninstall(&actionConfig).Run(release.Name)
 		return err
 	}, nil
-
 }

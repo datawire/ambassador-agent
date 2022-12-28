@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/datawire/ambassador-agent/pkg/api/agent"
-	"github.com/datawire/dlib/dlog"
-	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/peer"
+
+	"github.com/datawire/ambassador-agent/pkg/api/agent"
+	"github.com/datawire/dlib/dlog"
+	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
 )
 
 var (
@@ -56,9 +57,8 @@ func agentMetricsSetupTest() (*MockClient, *Agent) {
 }
 
 func TestMetricsRelayHandler(t *testing.T) {
-
 	t.Run("will relay metrics from the stack", func(t *testing.T) {
-		//given
+		// given
 		clientMock, stubbedAgent := agentMetricsSetupTest()
 		ctx := peer.NewContext(dlog.NewTestContext(t, true), &peer.Peer{
 			Addr: &net.IPAddr{
@@ -66,7 +66,7 @@ func TestMetricsRelayHandler(t *testing.T) {
 			},
 		})
 
-		//when
+		// when
 		// store acceptedMetric and reject ignoredMetric
 		stubbedAgent.MetricsRelayHandler(ctx, &envoyMetrics.StreamMetricsMessage{
 			Identifier:   nil,
@@ -77,7 +77,7 @@ func TestMetricsRelayHandler(t *testing.T) {
 		// wait for report to complete
 		<-stubbedAgent.metricsReportComplete
 
-		//then
+		// then
 		assert.Equal(t, []*agent.StreamMetricsMessage{{
 			EnvoyMetrics: []*io_prometheus_client.MetricFamily{acceptedMetric},
 		}}, clientMock.SentMetrics, "metrics should be propagated to cloud")
@@ -87,13 +87,13 @@ func TestMetricsRelayHandler(t *testing.T) {
 		clientMock, stubbedAgent := agentMetricsSetupTest()
 		ctx := dlog.NewTestContext(t, true)
 
-		//when
+		// when
 		stubbedAgent.MetricsRelayHandler(ctx, &envoyMetrics.StreamMetricsMessage{
 			Identifier:   nil,
 			EnvoyMetrics: []*io_prometheus_client.MetricFamily{acceptedMetric},
 		})
 
-		//then
+		// then
 		assert.Equal(t, 0, len(stubbedAgent.aggregatedMetrics), "no metrics")
 		assert.Equal(t, 0, len(clientMock.SentMetrics), "nothing send to cloud")
 	})
@@ -106,13 +106,13 @@ func TestMetricsRelayHandler(t *testing.T) {
 			},
 		})
 
-		//when
+		// when
 		stubbedAgent.MetricsRelayHandler(ctx, &envoyMetrics.StreamMetricsMessage{
 			Identifier:   nil,
 			EnvoyMetrics: []*io_prometheus_client.MetricFamily{},
 		})
 
-		//then
+		// then
 		assert.Equal(t, 0, len(stubbedAgent.aggregatedMetrics), "no metrics")
 		assert.Equal(t, 0, len(clientMock.SentMetrics), "nothing send to cloud")
 	})

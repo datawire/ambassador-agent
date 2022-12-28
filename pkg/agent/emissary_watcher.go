@@ -4,9 +4,10 @@ import (
 	"context"
 	"sync"
 
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/datawire/k8sapi/pkg/k8sapi"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
-	"k8s.io/client-go/kubernetes"
 )
 
 type AmbassadorWatcher struct {

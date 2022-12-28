@@ -21,8 +21,8 @@ type informerMock struct {
 
 func (i *informerMock) AddEventHandler(handler cache.ResourceEventHandler) {
 	i.eventHandler = handler
-
 }
+
 func (i *informerMock) Run(stopCh <-chan struct{}) {
 	i.run(i.eventHandler)
 }
@@ -72,7 +72,6 @@ func TestWatchGeneric(t *testing.T) {
 			dc:         dc,
 			rolloutGvr: rolloutGvr,
 		}
-
 	}
 	t.Run("will watch generic resource successfully", func(t *testing.T) {
 		// given
@@ -86,16 +85,14 @@ func TestWatchGeneric(t *testing.T) {
 		// then
 		assert.NotNil(t, rolloutCallback)
 		for i := 0; i < 3; i++ {
-			select {
-			case callback := <-rolloutCallback:
-				switch callback.EventType {
-				case agent.CallbackEventAdded:
-					assert.Equal(t, "obj1-added", callback.Obj.GetName())
-				case agent.CallbackEventUpdated:
-					assert.Equal(t, "obj1-new", callback.Obj.GetName())
-				case agent.CallbackEventDeleted:
-					assert.Equal(t, "obj1-del", callback.Obj.GetName())
-				}
+			callback := <-rolloutCallback
+			switch callback.EventType {
+			case agent.CallbackEventAdded:
+				assert.Equal(t, "obj1-added", callback.Obj.GetName())
+			case agent.CallbackEventUpdated:
+				assert.Equal(t, "obj1-new", callback.Obj.GetName())
+			case agent.CallbackEventDeleted:
+				assert.Equal(t, "obj1-del", callback.Obj.GetName())
 			}
 		}
 	})

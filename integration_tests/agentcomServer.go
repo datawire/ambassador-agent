@@ -3,17 +3,19 @@ package itest
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/argoproj/argo-rollouts/pkg/client/clientset/versioned/scheme"
-	"github.com/datawire/ambassador-agent/pkg/api/agent"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/datawire/ambassador-agent/pkg/api/agent"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -73,7 +75,7 @@ func (ac *AgentCom) SetKATServerImage(image string) {
 }
 
 func (ac *AgentCom) RPCAddress() string {
-	return fmt.Sprintf("http://%s:%d", ac.name, ac.port)
+	return "http://" + net.JoinHostPort(ac.name, strconv.Itoa(ac.port))
 }
 
 func (ac *AgentCom) Install(ctx context.Context) (CleanupFunc, error) {
@@ -154,7 +156,7 @@ func (ac *AgentCom) Install(ctx context.Context) (CleanupFunc, error) {
 		},
 	}
 
-	var client = ac.clientset.CoreV1()
+	client := ac.clientset.CoreV1()
 	_, err = client.Services(ac.namespace).Create(ctx, &svc, v1.CreateOptions{})
 	if err != nil {
 		return nil, err

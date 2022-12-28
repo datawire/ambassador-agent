@@ -20,7 +20,7 @@ func GetIdentity(ambassadorMeta *snapshotTypes.AmbassadorMetaInfo, ambHost strin
 	}
 }
 
-// GetIdentityFromDiagnostics returns the Agent's DCP Identity, if present
+// GetIdentityFromDiagnostics returns the Agent's DCP Identity, if present.
 func GetIdentityFromDiagnostics(ambSystem *diagnosticsTypes.System, ambHost string) *agent.Identity {
 	if ambSystem == nil || ambSystem.ClusterID == "" {
 		// No Ambassador module -> no identity -> no reporting

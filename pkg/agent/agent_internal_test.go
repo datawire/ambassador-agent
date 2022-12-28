@@ -30,7 +30,7 @@ const (
 )
 
 // Take a json formatted string and transform it to kates.Unstructured
-// for easy formatting of Snapshot.Invalid members
+// for easy formatting of Snapshot.Invalid members.
 func getUnstructured(objStr string) *kates.Unstructured {
 	var obj map[string]interface{}
 	_ = json.Unmarshal([]byte(objStr), &obj)
@@ -204,7 +204,6 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 			tc.agent.setAPIKeyConfigFrom(ctx, tc.secrets, tc.configMaps)
 
 			assert.Equal(t, tc.agent.ambassadorAPIKey, tc.expectedAPIKey)
-
 		})
 	}
 }
@@ -309,7 +308,7 @@ func TestProcessSnapshot(t *testing.T) {
 			ctx := dlog.NewTestContext(t, false)
 			a.connAddress = testcase.address
 			// Parsing the comm address was moved to the watch function.
-			a.parseCommAddr()
+			assert.NoError(t, a.parseCommAddr())
 			actualRet := a.ProcessSnapshot(ctx, testcase.inputSnap, "ambassador-host")
 
 			assert.Equal(t, testcase.ret, actualRet)
@@ -428,7 +427,7 @@ func TestProcessDiagnosticsSnapshot(t *testing.T) {
 			ctx := dlog.NewTestContext(t, false)
 			a.connAddress = testcase.address
 			// Parsing the comm address was moved to the watch function.
-			a.parseCommAddr()
+			assert.NoError(t, a.parseCommAddr())
 			agentDiagnostics, actualRet := a.ProcessDiagnostics(ctx, testcase.inputDiagnostics, "ambassador-host")
 
 			assert.Equal(t, testcase.ret, actualRet)
@@ -451,7 +450,7 @@ func TestProcessDiagnosticsSnapshot(t *testing.T) {
 }
 
 // Set up a watch and send a MinReportPeriod directive to the directive channel
-// Make sure that Agent.MinReportPeriod is set to this new value
+// Make sure that Agent.MinReportPeriod is set to this new value.
 func TestWatchReportPeriodDirective(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
@@ -496,7 +495,7 @@ func TestWatchReportPeriodDirective(t *testing.T) {
 	directiveChan <- directive
 
 	// since we're async let's just sleep for a sec
-	time.Sleep(1)
+	time.Sleep(time.Second)
 
 	// stop the watch
 	cancel()
@@ -513,7 +512,7 @@ func TestWatchReportPeriodDirective(t *testing.T) {
 }
 
 // Start a watch and send a nil then empty directive through the channel
-// make sure nothing errors or panics
+// make sure nothing errors or panics.
 func TestWatchEmptyDirectives(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
@@ -576,7 +575,7 @@ func TestWatchEmptyDirectives(t *testing.T) {
 
 // Setup a watch
 // send a directive to tell the agent to stop sending reports to the agent comm.
-// Then, send a snapshot through the channel and ensure that it doesn't get sent to the agent com
+// Then, send a snapshot through the channel and ensure that it doesn't get sent to the agent com.
 func TestWatchStopReportingDirective(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
@@ -643,7 +642,7 @@ func TestWatchStopReportingDirective(t *testing.T) {
 }
 
 // Start a watch. Configure the mock client to error when Report() is called
-// Send a snapshot through the channel, and make sure the error propogates thru the agent.reportComplete
+// Send a snapshot through the channel, and make sure the error propagates thru the agent.reportComplete
 // channel, and that the error doesn't make things sad.
 func TestWatchErrorSendingSnapshot(t *testing.T) {
 	t.Parallel()
@@ -687,7 +686,6 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 		}
 		_, err = w.Write(enSnapshot)
 		assert.NoError(t, err)
-
 	}))
 	defer ts.Close()
 	mockError := errors.New("MockClient: Error sending report")
@@ -757,6 +755,7 @@ func (m *MockCoreWatchers) Cancel()                           {}
 func (m *MockCoreWatchers) Subscribe(ctx context.Context) <-chan struct{} {
 	return m.ch
 }
+
 func (m *MockCoreWatchers) LoadSnapshot(ctx context.Context, snapshot *snapshotTypes.Snapshot) {
 	snapshot.Kubernetes.Pods = m.pods
 	snapshot.Kubernetes.Endpoints = m.endpts
@@ -767,7 +766,7 @@ func (m *MockCoreWatchers) LoadSnapshot(ctx context.Context, snapshot *snapshotT
 // Start a watch. Setup a mock client to capture what we would have sent to the agent com
 // Send a snapshot with some data in it thru the channel
 // Make sure the Snapshot.KubernetesSecrets and Snapshot.Invalid get scrubbed of sensitive data and
-// we send a SnapshotTs that makes sense (so the agent com can throw out older snapshots)
+// we send a SnapshotTs that makes sense (so the agent com can throw out older snapshots).
 func TestWatchWithSnapshot(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
@@ -1016,9 +1015,9 @@ func TestWatchWithSnapshot(t *testing.T) {
 	/////// Identity assertions
 	actualIdentity := sentSnapshot.Identity
 	assert.NotNil(t, actualIdentity)
-	assert.Equal(t, "", actualIdentity.AccountId)
-	assert.NotNil(t, actualIdentity.Version)
-	assert.Equal(t, "", actualIdentity.Version)
+	assert.Equal(t, "", actualIdentity.AccountId) //nolint:staticcheck // deprecated
+	assert.NotNil(t, actualIdentity.Version)      //nolint:staticcheck // deprecated
+	assert.Equal(t, "", actualIdentity.Version)   //nolint:staticcheck // deprecated
 	assert.Equal(t, clusterID, actualIdentity.ClusterId)
 	parsedURL, err := url.Parse(ts.URL)
 	assert.Nil(t, err)
@@ -1027,7 +1026,7 @@ func TestWatchWithSnapshot(t *testing.T) {
 
 // Setup a watch.
 // Send a snapshot with no cluster id
-// Make sure we don't try to send anything and that nothing errors or panics
+// Make sure we don't try to send anything and that nothing errors or panics.
 func TestWatchEmptySnapshot(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))

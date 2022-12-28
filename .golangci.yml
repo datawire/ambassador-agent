@@ -1,0 +1,166 @@
+run:
+  build-tags:
+    - citest
+  modules-download-mode: readonly
+
+issues:
+  # Give me the full output
+  max-same-issues: 0
+
+  # Use the default excludes...
+  exclude-use-default: false
+  # ...but also add some of our own
+  exclude:
+    - Error return value of `(\w+\.)+(Close|CloseSend|Flush|Remove|(Un)?Setenv|(Fp|P)rint(f|ln))\` is not checked
+    - 'structtag: struct field \w+ repeats json tag'
+    - 'Subprocess launched with function call as argument or cmd arguments'
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - const
+        - dupl
+        - gochecknoglobals
+        - goconst
+        - golint
+        - lll
+        - unparam
+
+linters-settings:
+  cyclop:
+    max-complexity: 32
+    skip-tests: true
+  depguard:
+    list-type: blacklist
+    include-go-root: true
+    packages-with-error-message:
+      - io/ioutil:                         "`io/ioutil` is deprecated in Go 1.16, use `io` or `os` instead"
+      - syscall:                           "Use `golang.org/x/sys/...` instead of `syscall`"
+      - github.com/golang/protobuf:        "Use `google.golang.org/protobuf` instead of `github.com/golang/protobuf`"
+      - github.com/datawire/dlib/dutil:    "Use either `github.com/datawire/dlib/derror` or `github.com/datawire/dlib/dhttp` instead of `github.com/datawire/dlib/dutil`"
+      - golang.org/x/net/http2/h2c:        "Use `github.com/datawire/dlib/dhttp` instead of `golang.org/x/net/http2/h2c`"
+  gomodguard:
+    blocked:
+      modules:
+        - gotest.tools:    { recommendations: ['github.com/stretchr/testify', 'github.com/google/go-cmp/cmp'] }
+        - gotest.tools/v2: { recommendations: ['github.com/stretchr/testify', 'github.com/google/go-cmp/cmp'] }
+        - gotest.tools/v3: { recommendations: ['github.com/stretchr/testify', 'github.com/google/go-cmp/cmp'] }
+  forbidigo:
+    forbid:
+      - '^os\.(DirEntry|FileInfo|FileMode|PathError)$' # deprecated in Go 1.16, import them from 'io/fs' instead
+      - '\.Readdir$' # deprecated in Go 1.16, use ReadDir instead
+    exclude_godoc_examples: false
+
+  gocyclo:
+    min-complexity: 35
+
+  gocognit:
+    min-complexity: 60
+
+  goimports:
+    # A comma-separated list
+    local-prefixes: github.com/emissary-ingress,github.com/datawire
+
+  lll:
+    line-length: 180
+    tab-width: 2
+
+  nolintlint:
+    allow-unused: true # Needed because there's some linters disabled for 1.18
+    allow-leading-space: false
+    require-explanation: true
+    require-specific: true
+    allow-no-explanation:
+      - gocognit
+linters:
+  # Enable specific linter
+  # https://golangci-lint.run/usage/linters/#enabled-by-default
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - cyclop
+    - decorder
+    - depguard
+    - dogsled
+    - durationcheck
+    - errcheck
+    - errname
+    - execinquery
+    - exportloopref
+    - forbidigo
+    - gochecknoglobals
+    - gocognit
+    - gocritic
+    - gocyclo
+    - godot
+    - gofmt
+    - gofumpt
+    - goheader
+    - goimports
+    - gomodguard
+    - goprintffuncname
+    - gosimple
+    - govet
+    - grouper
+    - importas
+    - ineffassign
+    - lll
+    - logrlint
+    - makezero
+    - misspell
+    - nakedret
+    - nolintlint
+    - nosprintfhostport
+    - prealloc
+    - predeclared
+    - reassign
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - whitespace
+  disable:
+    - containedctx
+    - contextcheck
+    - dupl
+    - errchkjson
+    - errorlint
+    - exhaustive
+    - exhaustruct
+    - forcetypeassert
+    - funlen
+    - gci
+    - gochecknoinits
+    - goconst
+    - goerr113
+    - godox
+    - gomnd
+    - gomoddirectives
+    - gosec
+    - interfacebloat
+    - ireturn
+    - maintidx
+    - nestif
+    - nilerr
+    - nilnil
+    - nlreturn
+    - noctx
+    - nonamedreturns
+    - paralleltest
+    - promlinter
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - stylecheck
+    - tagliatelle
+    - tenv
+    - testpackage
+    - thelper
+    - tparallel
+    - typecheck
+    - varnamelen
+    - wastedassign
+    - wrapcheck
+    - wsl

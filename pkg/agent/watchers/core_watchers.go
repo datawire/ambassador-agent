@@ -8,9 +8,10 @@ import (
 	"github.com/datawire/k8sapi/pkg/k8sapi"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 
-	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+
+	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 )
 
 type CoreWatchers struct {
@@ -42,16 +43,16 @@ func NewCoreWatchers(clientset *kubernetes.Clientset, namespaces []string, om Ob
 
 	// TODO equals func to prevent over-broadcasting
 	for _, ns := range namespaces {
-		coreWatchers.cmapsWatchers.AddWatcher(k8sapi.NewWatcher("configmaps", ns, coreClient, &kates.ConfigMap{}, cond, nil))
-		coreWatchers.deployWatchers.AddWatcher(k8sapi.NewWatcher("deployments", ns, appClient, &kates.Deployment{}, cond, nil))
-		coreWatchers.podWatchers.AddWatcher(k8sapi.NewWatcher("pods", ns, coreClient, &kates.Pod{}, cond, nil))
-		coreWatchers.endpointWatchers.AddWatcher(k8sapi.NewWatcher("endpoints", ns, coreClient, &kates.Endpoints{}, cond, nil))
+		_ = coreWatchers.cmapsWatchers.AddWatcher(k8sapi.NewWatcher("configmaps", ns, coreClient, &kates.ConfigMap{}, cond, nil))
+		_ = coreWatchers.deployWatchers.AddWatcher(k8sapi.NewWatcher("deployments", ns, appClient, &kates.Deployment{}, cond, nil))
+		_ = coreWatchers.podWatchers.AddWatcher(k8sapi.NewWatcher("pods", ns, coreClient, &kates.Pod{}, cond, nil))
+		_ = coreWatchers.endpointWatchers.AddWatcher(k8sapi.NewWatcher("endpoints", ns, coreClient, &kates.Endpoints{}, cond, nil))
 	}
 
 	return coreWatchers
 }
 
-func (w *CoreWatchers) loadPods(ctx context.Context, svcs []*kates.Service) []*kates.Pod {
+func (w *CoreWatchers) loadPods(ctx context.Context, _ []*kates.Service) []*kates.Pod {
 	pods, err := w.podWatchers.List(ctx)
 	if err != nil {
 		dlog.Errorf(ctx, "Unable to find pods: %v", err)

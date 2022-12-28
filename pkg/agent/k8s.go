@@ -47,7 +47,7 @@ type DynamicClient struct {
 	mux         sync.Mutex
 }
 
-// NewDynamicClient is the main contructor of DynamicClient
+// NewDynamicClient is the main contructor of DynamicClient.
 func NewDynamicClient(di dynamic.Interface, informerFn InformerFunc) *DynamicClient {
 	return &DynamicClient{
 		newInformer: informerFn,
@@ -94,7 +94,7 @@ func (dc *DynamicClient) sendCallback(callbackChan chan<- *GenericCallback, call
 	callbackChan <- callback
 }
 
-// WatchGeneric will watch any resource existing in the cluster or not. This is usefull for
+// WatchGeneric will watch any resource existing in the cluster or not. This is useful for
 // watching CRDs that may or may not be available in the cluster.
 func (dc *DynamicClient) WatchGeneric(ctx context.Context, ns string, gvr *schema.GroupVersionResource) <-chan *GenericCallback {
 	callbackChan := make(chan *GenericCallback)
@@ -110,16 +110,16 @@ func (dc *DynamicClient) WatchGeneric(ctx context.Context, ns string, gvr *schem
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				dlog.Debugf(ctx, "WatchGeneric: AddFunc called for resource %q", gvr.String())
-				new := obj.(*unstructured.Unstructured)
+				uObj := obj.(*unstructured.Unstructured)
 				sotw := i.ListCache()
-				callback := &GenericCallback{EventType: CallbackEventAdded, Obj: new, Sotw: sotw}
+				callback := &GenericCallback{EventType: CallbackEventAdded, Obj: uObj, Sotw: sotw}
 				dc.sendCallback(callbackChan, callback)
 			},
 			UpdateFunc: func(oldObj, newObj interface{}) {
 				dlog.Debugf(ctx, "WatchGeneric: UpdateFunc called for resource %q", gvr.String())
-				new := newObj.(*unstructured.Unstructured)
+				uObj := newObj.(*unstructured.Unstructured)
 				sotw := i.ListCache()
-				callback := &GenericCallback{EventType: CallbackEventUpdated, Obj: new, Sotw: sotw}
+				callback := &GenericCallback{EventType: CallbackEventUpdated, Obj: uObj, Sotw: sotw}
 				dc.sendCallback(callbackChan, callback)
 			},
 			DeleteFunc: func(obj interface{}) {
@@ -138,7 +138,7 @@ func (dc *DynamicClient) WatchGeneric(ctx context.Context, ns string, gvr *schem
 		},
 	)
 	go i.Run(ctx.Done())
-	dlog.Infof(ctx, "WatchGeneric: Listening for events from resouce %q", gvr.String())
+	dlog.Infof(ctx, "WatchGeneric: Listening for events from resource %q", gvr.String())
 	return callbackChan
 }
 

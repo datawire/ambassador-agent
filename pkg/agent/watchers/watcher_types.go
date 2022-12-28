@@ -3,8 +3,9 @@ package watchers
 import (
 	"context"
 
-	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 )
 
 type ObjectModifier func(obj runtime.Object)
