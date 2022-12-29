@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -59,20 +58,17 @@ type Comm interface {
 type Agent struct {
 	// Connectivity to the Director
 
+	*Env
 	comm             Comm
-	connInfo         *ConnInfo
 	agentID          *agent.Identity
 	newDirective     <-chan *agent.Directive
-	ambassadorAPIKey string
 	directiveHandler DirectiveHandler
 	// store what the initial value was in the env var, so we can set the ambassadorAPIKey value
 	// (^^Above) if the configmap and/or secret get deleted.
 	ambassadorAPIKeyEnvVarValue string
-	connAddress                 string
 
 	// State managed by the director via the retriever
-	reportingStopped bool          // Did the director say don't report?
-	minReportPeriod  time.Duration // How often can we Report?
+	reportingStopped bool // Did the director say don't report?
 	lastDirectiveID  string
 
 	// The state of reporting
@@ -87,21 +83,6 @@ type Agent struct {
 	rolloutStore *RolloutStore
 	// applicationStore holds Argo Applications state from cluster
 	applicationStore *ApplicationStore
-
-	// config map/secret information
-	// agent namespace is... the namespace the agent is running in.
-	// but more importantly, it's the namespace that the config resource lives in (which is
-	// either a ConfigMap or Secret)
-	agentNamespace string
-	// Name of the k8s ConfigMap or Secret the CLOUD_CONNECT_TOKEN exists on. We're supporting
-	// both Secrets and ConfigMaps here because it is likely in an enterprise cluster, the RBAC
-	// for secrets is locked down to Ops folks only, and we want to make it easy for regular ol'
-	// engineers to give this whole service catalog thing a go
-	agentCloudResourceConfigName string
-
-	// Field selector for the k8s resources that the agent watches
-	agentWatchFieldSelector string
-	namespacesToWatch       []string
 
 	// A mutex related to the metrics endpoint action, to avoid concurrent (and useless) pushes.
 	metricsRelayMutex sync.Mutex
@@ -145,21 +126,8 @@ func NewAgent(
 	rolloutsGetterFactory rolloutsGetterFactory,
 	secretsGetterFactory secretsGetterFactory,
 	clientset *kubernetes.Clientset,
-	agentNamespace string,
+	env *Env,
 ) *Agent {
-	reportPeriodFromEnv := os.Getenv("AGENT_REPORTING_PERIOD")
-	var reportPeriod time.Duration
-	if reportPeriodFromEnv != "" {
-		var err error
-		reportPeriod, err = time.ParseDuration(reportPeriodFromEnv)
-		if err != nil {
-			reportPeriod = defaultMinReportPeriod
-		} else {
-			reportPeriod = MaxDuration(defaultMinReportPeriod, reportPeriod)
-		}
-	} else {
-		reportPeriod = defaultMinReportPeriod
-	}
 	if directiveHandler == nil {
 		directiveHandler = &BasicDirectiveHandler{
 			DefaultMinReportPeriod: defaultMinReportPeriod,
@@ -170,46 +138,31 @@ func NewAgent(
 
 	rpcExtraHeaders := make([]string, 0)
 
-	if os.Getenv("RPC_INTERCEPT_HEADER_KEY") != "" &&
-		os.Getenv("RPC_INTERCEPT_HEADER_VALUE") != "" {
+	if env.RpcInterceptHeaderKey != "" && env.RpcInterceptHeaderValue != "" {
 		rpcExtraHeaders = append(
 			rpcExtraHeaders,
-			os.Getenv("RPC_INTERCEPT_HEADER_KEY"),
-			os.Getenv("RPC_INTERCEPT_HEADER_VALUE"),
+			env.RpcInterceptHeaderKey,
+			env.RpcInterceptHeaderValue,
 		)
 	}
 
-	namespacesToWatch := strings.Split(os.Getenv("NAMESPACES_TO_WATCH"), " ")
-	if len(namespacesToWatch) == 0 {
-		namespacesToWatch = append(namespacesToWatch, "")
-	}
-
 	return &Agent{
-		minReportPeriod: reportPeriod,
-		reportComplete:  make(chan error),
+		Env:            env,
+		reportComplete: make(chan error),
 		// metricsReportComplete:     make(chan error),
 		// diagnosticsReportComplete: make(chan error),
 
-		ambassadorAPIKey: os.Getenv(cloudConnectTokenKey),
-		// store this same value in a different variable, so that if ambassadorAPIKey gets
-		// changed by some other configuration, we know what to change it back to. See
-		// comment on the struct for more detail
-		ambassadorAPIKeyEnvVarValue:  os.Getenv(cloudConnectTokenKey),
-		connAddress:                  os.Getenv("RPC_CONNECTION_ADDRESS"),
-		agentNamespace:               agentNamespace,
-		agentCloudResourceConfigName: os.Getenv("AGENT_CONFIG_RESOURCE_NAME"),
-		directiveHandler:             directiveHandler,
-		agentWatchFieldSelector:      getEnvWithDefault("AGENT_WATCH_FIELD_SELECTOR", "metadata.namespace!=kube-system"),
-		rpcExtraHeaders:              rpcExtraHeaders,
-		aggregatedMetrics:            map[string][]*ioPrometheusClient.MetricFamily{},
-		namespacesToWatch:            namespacesToWatch,
+		ambassadorAPIKeyEnvVarValue: env.AmbassadorAPIKey,
+		directiveHandler:            directiveHandler,
+		rpcExtraHeaders:             rpcExtraHeaders,
+		aggregatedMetrics:           map[string][]*ioPrometheusClient.MetricFamily{},
 
 		// k8sapi watchers
 		clientset:         clientset,
-		coreWatchers:      watchers.NewCoreWatchers(clientset, namespacesToWatch, objectModifier),
-		configWatchers:    NewConfigWatchers(clientset, agentNamespace),
-		ambassadorWatcher: NewAmbassadorWatcher(clientset, agentNamespace),
-		fallbackWatcher:   watchers.NewFallbackWatcher(ctx, clientset, namespacesToWatch, objectModifier),
+		coreWatchers:      watchers.NewCoreWatchers(clientset, env.NamespacesToWatch, objectModifier),
+		configWatchers:    NewConfigWatchers(clientset, env.AgentNamespace),
+		ambassadorWatcher: NewAmbassadorWatcher(clientset, env.AgentNamespace),
+		fallbackWatcher:   watchers.NewFallbackWatcher(ctx, clientset, env.NamespacesToWatch, objectModifier),
 	}
 }
 
@@ -224,8 +177,8 @@ func (a *Agent) StartReporting(ctx context.Context) {
 }
 
 func (a *Agent) SetMinReportPeriod(ctx context.Context, dur time.Duration) {
-	dlog.Debugf(ctx, "minimum report period %s -> %s", a.minReportPeriod, dur)
-	a.minReportPeriod = dur
+	dlog.Debugf(ctx, "minimum report period %s -> %s", a.MinReportPeriod, dur)
+	a.MinReportPeriod = dur
 }
 
 func (a *Agent) SetLastDirectiveID(ctx context.Context, id string) {
@@ -238,9 +191,9 @@ func (a *Agent) SetReportDiagnosticsAllowed(reportDiagnosticsAllowed bool) {
 	a.reportDiagnosticsAllowed = reportDiagnosticsAllowed
 }
 
-func getAmbSnapshotInfo(url string) (*snapshotTypes.Snapshot, error) {
+func getAmbSnapshotInfo(url *url.URL) (*snapshotTypes.Snapshot, error) {
 	// TODO maybe put request in go-routine
-	resp, err := http.Get(url)
+	resp, err := http.Get(url.String())
 	if err != nil {
 		return nil, err
 	}
@@ -259,8 +212,8 @@ func getAmbSnapshotInfo(url string) (*snapshotTypes.Snapshot, error) {
 	return ret, err
 }
 
-func getAmbDiagnosticsInfo(url string) (*diagnosticsTypes.Diagnostics, error) {
-	resp, err := http.Get(url)
+func getAmbDiagnosticsInfo(url *url.URL) (*diagnosticsTypes.Diagnostics, error) {
+	resp, err := http.Get(url.String())
 	if err != nil {
 		return nil, err
 	}
@@ -277,14 +230,6 @@ func getAmbDiagnosticsInfo(url string) (*diagnosticsTypes.Diagnostics, error) {
 	err = json.Unmarshal(rawDiagnosticsSnapshot, ret)
 
 	return ret, err
-}
-
-func parseAmbassadorAdminHost(rawUrl string) (string, error) {
-	url, err := url.Parse(rawUrl)
-	if err != nil {
-		return "", err
-	}
-	return url.Hostname(), nil
 }
 
 func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
@@ -308,8 +253,8 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	// if the key is new, reset the connection, so we use a new api key (or break the connection if the api key was
 	// unset). The agent will reset the connection the next time it tries to send a report
 	maybeResetComm := func(newKey string, a *Agent) {
-		if newKey != a.ambassadorAPIKey {
-			a.ambassadorAPIKey = newKey
+		if newKey != a.AmbassadorAPIKey {
+			a.AmbassadorAPIKey = newKey
 			a.ClearComm()
 		}
 	}
@@ -318,7 +263,7 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	// there _should_ only be one secret here, but we're going to loop and check that the object
 	// meta matches what we expect
 	for _, secret := range secrets {
-		if secret.GetName() == a.agentCloudResourceConfigName || strings.HasSuffix(secret.GetName(), cloudConnectTokenDefaultSuffix) {
+		if secret.GetName() == a.AgentConfigResourceName || strings.HasSuffix(secret.GetName(), cloudConnectTokenDefaultSuffix) {
 			connTokenBytes, ok := secret.Data[cloudConnectTokenKey]
 			if !ok {
 				continue
@@ -333,7 +278,7 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 	// there _should_ only be one config here, but we're going to loop and check that the object
 	// meta matches what we expect
 	for _, cm := range cMaps {
-		if cm.GetName() == a.agentCloudResourceConfigName || strings.HasSuffix(cm.GetName(), cloudConnectTokenDefaultSuffix) {
+		if cm.GetName() == a.AgentConfigResourceName || strings.HasSuffix(cm.GetName(), cloudConnectTokenDefaultSuffix) {
 			connTokenBytes, ok := cm.Data[cloudConnectTokenKey]
 			if !ok {
 				continue
@@ -360,20 +305,12 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 // Watch is the work performed by the main goroutine for the Agent. It processes
 // Watt/Diag snapshots, reports to the Director, and executes directives from
 // the Director.
-func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) error {
+func (a *Agent) Watch(ctx context.Context) error {
 	dlog.Info(ctx, "Agent is running...")
-	ambHost, err := parseAmbassadorAdminHost(snapshotURL)
-	if err != nil {
-		// if we can't parse the host out of the url we won't be able to talk to ambassador
-		// anyway
-		return err
-	}
-
 	configCh := k8sapi.Subscribe(ctx, a.configWatchers.cond)
 	a.waitForAPIKey(ctx, configCh)
-
 	a.coreWatchers.EnsureStarted(ctx)
-	a.handleAmbassadorEndpointChange(ctx, ambHost)
+	a.handleAmbassadorEndpointChange(ctx, a.AESSnapshotURL.Hostname())
 	ambCh := k8sapi.Subscribe(ctx, a.ambassadorWatcher.cond)
 
 	// The following is kates that I'm not sure if we can replicate with k8sapi as it currently exists
@@ -390,14 +327,14 @@ func (a *Agent) Watch(ctx context.Context, snapshotURL, diagnosticsURL string) e
 	applicationGvr, _ := schema.ParseResourceArg("applications.v1alpha1.argoproj.io")
 	applicationCallback := dc.WatchGeneric(ctx, ns, applicationGvr)
 
-	return a.watch(ctx, snapshotURL, diagnosticsURL, ambHost, configCh, ambCh, rolloutCallback, applicationCallback)
+	return a.watch(ctx, configCh, ambCh, rolloutCallback, applicationCallback)
 }
 
 func (a *Agent) waitForAPIKey(ctx context.Context, ch <-chan struct{}) {
 	a.handleAPIKeyConfigChange(ctx)
 
 	// wait until the user installs an api key
-	for a.ambassadorAPIKey == "" {
+	for a.AmbassadorAPIKey == "" {
 		select {
 		case <-ctx.Done():
 			return
@@ -414,7 +351,6 @@ func (a *Agent) waitForAPIKey(ctx context.Context, ch <-chan struct{}) {
 // a report is maybe sent. Atomic booleans are used to interval reporting.
 func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 	ctx context.Context,
-	snapshotURL, diagnosticsURL, ambHost string,
 	configCh, ambCh <-chan struct{},
 	rolloutCallback, applicationCallback <-chan *GenericCallback,
 ) error {
@@ -438,7 +374,7 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 		case <-configCh:
 			a.handleAPIKeyConfigChange(ctx)
 		case <-ambCh:
-			a.handleAmbassadorEndpointChange(ctx, ambHost)
+			a.handleAmbassadorEndpointChange(ctx, a.AESSnapshotURL.Hostname())
 		case callback, ok := <-rolloutCallback:
 			if ok {
 				dlog.Debugf(ctx, "argo rollout callback: %v", callback.EventType)
@@ -459,16 +395,6 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			a.directiveHandler.HandleDirective(ctx, a, directive)
 		}
 
-		err := a.parseCommAddr()
-		if err != nil {
-			// There's a problem with the connection
-			// configuration. Rather than processing the snapshot and then
-			// failing to send the resulting report, let's just fail now. The user
-			// will see the error in the logs and correct the configuration.
-			dlog.Errorf(ctx, "Cloud connection address %s invalid", a.connAddress)
-			continue
-		}
-
 		// only ask ambassador for a snapshot if we're actually going to report it.
 		// if reportRunning is true, that means we're still in the quiet period
 		// after sending a report.
@@ -478,17 +404,17 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			// otherwise, create it
 			var snapshot *snapshotTypes.Snapshot
 			if a.emissaryPresent {
-				snapshot, err = getAmbSnapshotInfo(snapshotURL)
+				snapshot, err = getAmbSnapshotInfo(a.AESSnapshotURL)
 				if err != nil {
 					dlog.Warnf(ctx, "Error getting snapshot from ambassador %+v", err)
 				}
 			} else {
 				if a.clusterId == "" {
 					ns := "default"
-					if len(a.namespacesToWatch) > 0 && a.namespacesToWatch[0] != "" {
-						ns = a.agentNamespace
+					if len(a.NamespacesToWatch) > 0 && a.NamespacesToWatch[0] != "" {
+						ns = a.AgentNamespace
 					}
-					a.clusterId = GetClusterID(ctx, a.clientset, ns) // get cluster id for ambMeta
+					a.clusterId = a.getClusterID(ctx, a.clientset, ns) // get cluster id for ambMeta
 				}
 				snapshot = &snapshotTypes.Snapshot{
 					AmbassadorMeta: &snapshotTypes.AmbassadorMetaInfo{
@@ -499,13 +425,13 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			}
 
 			dlog.Debug(ctx, "Received snapshot in agent")
-			if err = a.ProcessSnapshot(ctx, snapshot, ambHost); err != nil {
+			if err = a.ProcessSnapshot(ctx, snapshot); err != nil {
 				dlog.Warnf(ctx, "error processing snapshot: %+v", err)
 			}
 		}
 
 		// We are about to start sending reports. Let's make sure we have a comm and apikey first
-		if a.ambassadorAPIKey == "" {
+		if a.AmbassadorAPIKey == "" {
 			dlog.Debugf(ctx, "CLOUD_CONNECT_TOKEN not set in the environment, not reporting diagnostics")
 			continue
 		}
@@ -516,7 +442,7 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			// closed above, due to a change in identity, or close elsewhere, due to
 			// a change in endpoint configuration.
 			newComm, err := NewComm(
-				ctx, a.connInfo, a.agentID, a.ambassadorAPIKey, a.rpcExtraHeaders)
+				ctx, a.ConnAddress, a.agentID, a.AmbassadorAPIKey, a.rpcExtraHeaders)
 			if err != nil {
 				dlog.Warnf(ctx, "Failed to dial the DCP: %v", err)
 				dlog.Warn(ctx, "DCP functionality disabled until next retry")
@@ -545,7 +471,7 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 		}
 
 		if !a.diagnosticsReportingStopped && !a.diagnosticsReportRunning.Load() && a.reportDiagnosticsAllowed {
-			a.ReportDiagnostics(ctx, diagnosticsURL, ambHost)
+			a.ReportDiagnostics(ctx, a.AESDiagnosticsURL)
 		} else {
 			// Don't report if the Director told us to stop reporting, if we are
 			// already sending a report or waiting for the minimum time between
@@ -559,26 +485,6 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			dlog.Debugf(ctx, "Not reporting diagnostics [reporting stopped = %t] [report running = %t]", a.reportingStopped, a.metricsReportRunning.Load())
 		}
 	}
-}
-
-func (a *Agent) parseCommAddr() error {
-	newConnInfo, err := connInfoFromAddress(a.connAddress)
-	if err != nil {
-		return err
-	}
-
-	if a.connInfo == nil || *newConnInfo != *a.connInfo {
-		// The configuration for the Director endpoint has changed: either this
-		// is the first snapshot or the user changed the value.
-		//
-		// Close any existing communications channel so that we can create
-		// a new one with the new endpoint.
-		a.ClearComm()
-
-		// Save the new endpoint information.
-		a.connInfo = newConnInfo
-	}
-	return nil
 }
 
 func (a *Agent) handleAmbassadorEndpointChange(ctx context.Context, ambassadorHost string) {
@@ -623,21 +529,21 @@ func (a *Agent) ReportSnapshot(ctx context.Context) {
 		default:
 			// do nothing if nobody is listening
 		}
-	}(ctx, a.reportToSend, a.minReportPeriod, a.ambassadorAPIKey)
+	}(ctx, a.reportToSend, a.MinReportPeriod, a.AmbassadorAPIKey)
 
 	// Update state variables
 	a.reportToSend = nil // Set when a snapshot yields a fresh report
 }
 
 // ReportDiagnostics ...
-func (a *Agent) ReportDiagnostics(ctx context.Context, diagnosticsURL, ambHost string) {
+func (a *Agent) ReportDiagnostics(ctx context.Context, diagnosticsURL *url.URL) {
 	// TODO maybe put request in go-routine
 	diagnostics, err := getAmbDiagnosticsInfo(diagnosticsURL)
 	if err != nil {
 		dlog.Warnf(ctx, "Error getting diagnostics from ambassador %+v", err)
 	}
 	dlog.Debug(ctx, "Received diagnostics in agent")
-	agentDiagnostics, err := a.ProcessDiagnostics(ctx, diagnostics, ambHost)
+	agentDiagnostics, err := a.ProcessDiagnostics(ctx, diagnostics)
 	if err != nil {
 		dlog.Warnf(ctx, "error processing diagnostics: %+v", err)
 	}
@@ -667,7 +573,7 @@ func (a *Agent) ReportDiagnostics(ctx context.Context, diagnosticsURL, ambHost s
 		default:
 			// do nothing if nobody is listening
 		}
-	}(ctx, agentDiagnostics, a.minReportPeriod, a.ambassadorAPIKey) // minReportPeriod is the one set for snapshots
+	}(ctx, agentDiagnostics, a.MinReportPeriod, a.AmbassadorAPIKey) // minReportPeriod is the one set for snapshots
 }
 
 // ReportMetrics sends and resets a.aggregatedMetrics.
@@ -694,7 +600,7 @@ func (a *Agent) ReportMetrics(ctx context.Context) {
 	}
 	dlog.Debugf(ctx, "Relaying %d metric(s)", relayedMetricCount)
 
-	go a.reportMetrics(ctx, outMessage, a.minReportPeriod, a.ambassadorAPIKey) // minReportPeriod is the one set for snapshots
+	go a.reportMetrics(ctx, outMessage, a.MinReportPeriod, a.AmbassadorAPIKey) // minReportPeriod is the one set for snapshots
 }
 
 // reportMetrics is meant to be called asynchronously, using pinned values as parameters.
@@ -720,13 +626,13 @@ func (a *Agent) reportMetrics(ctx context.Context, metricsReport *agent.StreamMe
 // send to the Director. If the new report is semantically different from the
 // prior one sent, then the Agent's state is updated to indicate that reporting
 // should occur once again.
-func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Snapshot, ambHost string) error {
+func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Snapshot) error {
 	if snapshot == nil || snapshot.AmbassadorMeta == nil {
 		dlog.Warn(ctx, "No metadata discovered for snapshot, not reporting.")
 		return nil
 	}
 
-	agentID := GetIdentity(snapshot.AmbassadorMeta, ambHost)
+	agentID := GetIdentity(snapshot.AmbassadorMeta, a.AESSnapshotURL.Hostname())
 	if agentID == nil {
 		dlog.Warnf(ctx, "Could not parse identity info out of snapshot, not sending snapshot")
 		return nil
@@ -781,9 +687,7 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 }
 
 // ProcessDiagnostics translates ambassadors diagnostics into streamable agent diagnostics.
-func (a *Agent) ProcessDiagnostics(ctx context.Context, diagnostics *diagnosticsTypes.Diagnostics,
-	ambHost string,
-) (*agent.Diagnostics, error) {
+func (a *Agent) ProcessDiagnostics(ctx context.Context, diagnostics *diagnosticsTypes.Diagnostics) (*agent.Diagnostics, error) {
 	if diagnostics == nil {
 		dlog.Warn(ctx, "No diagnostics found, not reporting.")
 		return nil, nil
@@ -794,7 +698,7 @@ func (a *Agent) ProcessDiagnostics(ctx context.Context, diagnostics *diagnostics
 		return nil, nil
 	}
 
-	agentID := GetIdentityFromDiagnostics(diagnostics.System, ambHost)
+	agentID := GetIdentityFromDiagnostics(diagnostics.System, a.AESSnapshotURL.Hostname())
 	if agentID == nil {
 		dlog.Warn(ctx, "Could not parse identity info out of diagnostics, not sending.")
 		return nil, nil
