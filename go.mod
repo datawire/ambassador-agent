@@ -84,6 +84,7 @@ replace (
 require (
 	github.com/argoproj/argo-rollouts v1.2.2
 	github.com/datawire/dlib v1.3.0
+	github.com/datawire/envconfig v0.0.0-20221012222025-09524dc7d59b
 	github.com/datawire/k8sapi v0.0.11
 	github.com/emissary-ingress/emissary/v3 v3.2.0
 	github.com/getkin/kin-openapi v0.97.0

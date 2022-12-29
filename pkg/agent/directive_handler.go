@@ -154,7 +154,7 @@ func (dh *BasicDirectiveHandler) reportCommandResult(
 		result.Success = false
 		result.Message = cmdError.Error()
 	}
-	apiKey := a.ambassadorAPIKey
+	apiKey := a.AmbassadorAPIKey
 	err := a.comm.ReportCommandResult(ctx, result, apiKey)
 	if err != nil {
 		dlog.Errorf(ctx, "error reporting result of command %s: %s", cmd, err)
