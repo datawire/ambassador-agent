@@ -46,6 +46,7 @@ func agentMetricsSetupTest() (*MockClient, *Agent) {
 	clientMock := &MockClient{}
 
 	stubbedAgent := &Agent{
+		Env: &Env{},
 		comm: &RPCComm{
 			client: clientMock,
 		},

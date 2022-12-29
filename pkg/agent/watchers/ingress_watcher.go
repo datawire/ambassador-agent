@@ -135,11 +135,12 @@ func (n *networkWatcher) List(ctx context.Context) ([]*k8s_resource_types.Ingres
 	return result, nil
 }
 
-func isNetworkingAPIAvailable(ctx context.Context, clientset *kubernetes.Clientset, namespace string) bool {
-	if namespace == "" {
-		namespace = "default"
+func isNetworkingAPIAvailable(ctx context.Context, clientset *kubernetes.Clientset, namespaces []string) bool {
+	ns := ""
+	if len(namespaces) > 0 {
+		ns = namespaces[0]
 	}
-	_, err := clientset.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{})
+	_, err := clientset.NetworkingV1().Ingresses(ns).List(ctx, metav1.ListOptions{})
 	// The truth of the matter is, if we get an error other than NotFound that means the user is trying to use
 	// the networking API but will not succeed; in that case, just let the watcher be created as normal, then have
 	// its own error handling take care of the issue.
@@ -155,7 +156,7 @@ func isNetworkingAPIAvailable(ctx context.Context, clientset *kubernetes.Clients
 }
 
 func getIngressWatcher(ctx context.Context, clientset *kubernetes.Clientset, namespaces []string, cond *sync.Cond, om ObjectModifier) ingressWatcher {
-	if isNetworkingAPIAvailable(ctx, clientset, namespaces[0]) {
+	if isNetworkingAPIAvailable(ctx, clientset, namespaces) {
 		netClient := clientset.NetworkingV1().RESTClient()
 		watcher := k8sapi.NewWatcherGroup[*networking.Ingress]()
 		for _, ns := range namespaces {

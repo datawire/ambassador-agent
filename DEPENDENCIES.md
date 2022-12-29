@@ -30,6 +30,7 @@ following Free and Open Source software:
     github.com/containerd/containerd                  v1.6.6                                Apache License 2.0
     github.com/cyphar/filepath-securejoin             v0.2.3                                3-clause BSD license
     github.com/datawire/dlib                          v1.3.0                                Apache License 2.0
+    github.com/datawire/envconfig                     v0.0.0-20221012222025-09524dc7d59b    Apache License 2.0
     github.com/datawire/k8sapi                        v0.0.11                               Apache License 2.0
     github.com/davecgh/go-spew                        v1.1.1                                ISC license
     github.com/docker/cli                             v20.10.17+incompatible                Apache License 2.0

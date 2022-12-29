@@ -56,7 +56,7 @@ spec:
             {{- end }}
             {{ if .Values.rbac.namespaces }}
             - name: NAMESPACES_TO_WATCH
-              value: {{ join "," .Values.rbac.namespaces }}
+              value: {{ join " " .Values.rbac.namespaces }}
             {{ end }}
   {{ if .Values.progressDeadline }}
   progressDeadlineSeconds: {{ .Values.progressDeadline }}
