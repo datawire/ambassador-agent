@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -31,8 +32,6 @@ import (
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
 	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
-
-	"k8s.io/client-go/kubernetes"
 
 	// load all auth plugins.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -110,7 +109,6 @@ type Agent struct {
 	emissaryPresent bool   // if not installed by emissary, generate snapshots
 	clusterId       string // cluster id used in generated snapshots
 
-	clientset *kubernetes.Clientset
 	// snapshot watchers
 	coreWatchers    watchers.SnapshotWatcher
 	fallbackWatcher watchers.SnapshotWatcher
@@ -125,7 +123,6 @@ func NewAgent(
 	directiveHandler DirectiveHandler,
 	rolloutsGetterFactory rolloutsGetterFactory,
 	secretsGetterFactory secretsGetterFactory,
-	clientset *kubernetes.Clientset,
 	env *Env,
 ) *Agent {
 	if directiveHandler == nil {
@@ -158,11 +155,10 @@ func NewAgent(
 		aggregatedMetrics:           map[string][]*ioPrometheusClient.MetricFamily{},
 
 		// k8sapi watchers
-		clientset:         clientset,
-		coreWatchers:      watchers.NewCoreWatchers(clientset, env.NamespacesToWatch, objectModifier),
-		configWatchers:    NewConfigWatchers(clientset, env.AgentNamespace),
-		ambassadorWatcher: NewAmbassadorWatcher(clientset, env.AgentNamespace),
-		fallbackWatcher:   watchers.NewFallbackWatcher(ctx, clientset, env.NamespacesToWatch, objectModifier),
+		coreWatchers:      watchers.NewCoreWatchers(ctx, env.NamespacesToWatch, objectModifier),
+		configWatchers:    NewConfigWatchers(ctx, env.AgentNamespace),
+		ambassadorWatcher: NewAmbassadorWatcher(ctx, env.AgentNamespace),
+		fallbackWatcher:   watchers.NewFallbackWatcher(ctx, env.NamespacesToWatch, objectModifier),
 	}
 }
 
@@ -414,7 +410,7 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 					if len(a.NamespacesToWatch) > 0 && a.NamespacesToWatch[0] != "" {
 						ns = a.AgentNamespace
 					}
-					a.clusterId = a.getClusterID(ctx, a.clientset, ns) // get cluster id for ambMeta
+					a.clusterId = a.getClusterID(ctx, ns) // get cluster id for ambMeta
 				}
 				snapshot = &snapshotTypes.Snapshot{
 					AmbassadorMeta: &snapshotTypes.AmbassadorMetaInfo{

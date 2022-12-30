@@ -3,6 +3,7 @@ package agent
 import (
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,6 +43,12 @@ type Env struct {
 	NamespacesToWatch       []string      `env:"NAMESPACES_TO_WATCH,             parser=split-trim,   default="`
 	RpcInterceptHeaderKey   string        `env:"RPC_INTERCEPT_HEADER_KEY,        parser=string,       default="`
 	RpcInterceptHeaderValue string        `env:"RPC_INTERCEPT_HEADER_VALUE,      parser=string,       default="`
+
+	// ServerHost is the hostname for the gRPC server. Can be empty, in which case it defaults to localhost.
+	ServerHost string `env:"SERVER_HOST, parser=string,      default="`
+
+	// ServerPort is the port tha the gRPC server is listening on.
+	ServerPort uint16 `env:"SERVER_PORT, parser=port-number"`
 }
 
 func fieldTypeHandlers() map[reflect.Type]envconfig.FieldTypeHandler {
@@ -102,6 +109,16 @@ func fieldTypeHandlers() map[reflect.Type]envconfig.FieldTypeHandler {
 			},
 		},
 		Setter: func(dst reflect.Value, src interface{}) { dst.Set(reflect.ValueOf(src.(*ConnInfo))) },
+	}
+
+	fhs[reflect.TypeOf(uint16(0))] = envconfig.FieldTypeHandler{
+		Parsers: map[string]func(string) (any, error){
+			"port-number": func(str string) (any, error) {
+				pn, err := strconv.ParseUint(str, 10, 16)
+				return uint16(pn), err
+			},
+		},
+		Setter: func(dst reflect.Value, src interface{}) { dst.SetUint(uint64(src.(uint16))) },
 	}
 	return fhs
 }
