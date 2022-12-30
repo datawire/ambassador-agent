@@ -2,6 +2,7 @@
 
 The Ambassador Agent is an optional compenent included with [Telepresence](https://github.com/telepresenceio/telepresence) and [Ambassador Edge Stack](https://github.com/emissary-ingress/emissary).
 The Ambassador Agent securely reports snapshots of your cluster to [Ambassador Cloud](https://www.getambassador.io/products/ambassador-cloud/), which populate the service catalog giving you a birds-eye-view of your cluster and its services.
+The Ambassador Agent provides a gRPC API to allow Telepresence to ask questions related to ingress resolution. 
 
 ## Installation
 
