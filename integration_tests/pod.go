@@ -3,6 +3,9 @@ package itest
 import (
 	"bufio"
 	"context"
+	"io"
+	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -13,18 +16,28 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/cmd/exec"
+
+	"github.com/datawire/dlib/dtime"
 )
 
 // NewPodLogChan returns a chan with the specified pods logs entry-by-entry.
-func NewPodLogChan(ctx context.Context, cs *kubernetes.Clientset, name, ns string, follow bool) (<-chan string, error) {
+func NewPodLogChan(ctx context.Context, cs kubernetes.Interface, name, ns string, follow bool) (<-chan string, error) {
 	var (
 		client = cs.CoreV1().Pods(ns)
 		opts   = corev1.PodLogOptions{Follow: follow}
 	)
 
-	logReader, err := client.GetLogs(name, &opts).Stream(ctx)
-	if err != nil {
-		return nil, err
+	var logReader io.ReadCloser
+	for {
+		var err error
+		if logReader, err = client.GetLogs(name, &opts).Stream(ctx); err != nil {
+			if strings.Contains(err.Error(), "waiting to start") {
+				dtime.SleepWithContext(ctx, 5*time.Second)
+				continue
+			}
+			return nil, err
+		}
+		break
 	}
 
 	var (
@@ -78,7 +91,7 @@ func PodExec(config *rest.Config, ns, podName string, cmd ...string) (stdout, st
 	}
 
 	if err := execOpts.Run(); err != nil {
-		return nil, nil, err
+		return nil, errBuf.Bytes(), err
 	}
 
 	return outBuf.Bytes(), errBuf.Bytes(), nil

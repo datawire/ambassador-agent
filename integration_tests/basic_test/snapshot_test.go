@@ -11,7 +11,7 @@ import (
 )
 
 func (s *BasicTestSuite) TestInitialSnapshot() {
-	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(s.Context(), 5*time.Second)
 	defer cancel()
 	ss, err := s.agentComServer.GetSnapshot(ctx)
 	s.Require().NoError(err)
@@ -24,7 +24,7 @@ func (s *BasicTestSuite) TestInitialSnapshot() {
 }
 
 func (s *BasicTestSuite) TestSnapshot() {
-	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(s.Context(), 15*time.Second)
 	defer cancel()
 	ss, err := s.agentComServer.GetSnapshot(ctx)
 	s.Require().NoError(err)
