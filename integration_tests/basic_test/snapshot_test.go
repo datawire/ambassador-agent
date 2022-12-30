@@ -7,24 +7,28 @@ import (
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"github.com/datawire/ambassador-agent/pkg/api/agent"
 	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 )
 
 func (s *BasicTestSuite) TestInitialSnapshot() {
-	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(s.Context(), 5*time.Second)
 	defer cancel()
-	ss, err := s.agentComServer.GetSnapshot(ctx)
-	s.Require().NoError(err)
+	var ss *agent.Snapshot
+	s.Require().Eventually(func() bool {
+		var err error
+		ss, err = s.agentComServer.GetSnapshot(ctx)
+		return err == nil
+	}, 10*time.Second, 2*time.Second)
 
 	var snapshot snapshotTypes.Snapshot
-	err = json.Unmarshal(ss.RawSnapshot, &snapshot)
-	s.Require().NoError(err)
+	s.Require().NoError(json.Unmarshal(ss.RawSnapshot, &snapshot))
 
 	s.Empty(snapshot.Deltas)
 }
 
 func (s *BasicTestSuite) TestSnapshot() {
-	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(s.Context(), 15*time.Second)
 	defer cancel()
 	ss, err := s.agentComServer.GetSnapshot(ctx)
 	s.Require().NoError(err)

@@ -4,38 +4,19 @@ import (
 	"context"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/suite"
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
 	itest "github.com/datawire/ambassador-agent/integration_tests"
-	"github.com/datawire/dlib/dlog"
 )
 
-const (
-	agentImageEnvVar = "AMBASSADOR_AGENT_DOCKER_IMAGE"
-	katImageEnvVar   = "KAT_SERVER_DOCKER_IMAGE"
-)
+const agentImageEnvVar = "AMBASSADOR_AGENT_DOCKER_IMAGE"
 
 type BasicTestSuite struct {
-	suite.Suite
-
-	ctx context.Context
-
-	config    *rest.Config
-	clientset *kubernetes.Clientset
-
-	namespace string
-	name      string
+	itest.Suite
 
 	namespaces []string
 
-	cleanupFuncs   map[string]itest.CleanupFunc
 	agentComServer *itest.AgentCom
 }
 
@@ -50,51 +31,34 @@ func TestBasicTestSuite_NamespaceScoped(t *testing.T) {
 }
 
 func (s *BasicTestSuite) SetupSuite() {
-	s.cleanupFuncs = make(map[string]itest.CleanupFunc)
-	s.namespace = "ambassador-test"
-	s.name = "ambassador-agent"
-	s.ctx = dlog.NewTestContext(s.T(), false)
-
-	kubeconfigPath := os.Getenv("KUBECONFIG")
-	s.Require().NotEmpty(kubeconfigPath)
-
-	var err error
-	s.config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	s.Require().NoError(err)
-	s.clientset, err = kubernetes.NewForConfig(s.config)
-	s.Require().NoError(err)
-
+	s.Init()
 	s.NotEmpty(os.Getenv(agentImageEnvVar),
 		"%s needs to be set", agentImageEnvVar,
 	)
 
-	_, err = s.clientset.CoreV1().Namespaces().
-		Create(s.ctx,
-			&corev1.Namespace{
-				ObjectMeta: v1.ObjectMeta{
-					Name: "ambassador-test",
-				},
-			},
-			v1.CreateOptions{},
-		)
-	s.Require().NoError(err)
+	ctx := s.Context()
+	s.Require().NoError(s.CreateNamespace(ctx, s.Namespace()))
+	s.Cleanup(func(ctx context.Context) error {
+		return s.DeleteNamespace(ctx, s.Namespace())
+	})
 
-	s.agentComServer, err = itest.NewAgentCom("agentcom-server", s.namespace, s.config)
+	var err error
+	s.agentComServer, err = itest.NewAgentCom("agentcom-server", s.Namespace(), s.Config())
 	s.Require().NoError(err)
-	acCleanup, err := s.agentComServer.Install(s.ctx)
+	acCleanup, err := s.agentComServer.Install(ctx)
 	s.Require().NoError(err)
-	s.cleanupFuncs["agentcom server"] = acCleanup
+	s.Cleanup(acCleanup)
 
 	installationConfig := itest.InstallationConfig{
-		ReleaseName: s.name,
-		Namespace:   s.namespace,
+		ReleaseName: s.Name(),
+		Namespace:   s.Namespace(),
 		ChartDir:    "../../helm/ambassador-agent",
 		Values: map[string]any{
 			"cloudConnectToken": "TOKEN",
 			"rpcAddress":        s.agentComServer.RPCAddress(),
 		},
 
-		RESTConfig: s.config,
+		RESTConfig: s.Config(),
 		Log:        s.T().Logf,
 	}
 	if 0 < len(s.namespaces) {
@@ -102,23 +66,7 @@ func (s *BasicTestSuite) SetupSuite() {
 			"namespaces": s.namespaces,
 		}
 	}
-	uninstallHelmChart, err := itest.InstallHelmChart(s.ctx, installationConfig)
+	uninstallHelmChart, err := itest.InstallHelmChart(ctx, installationConfig)
 	s.Require().NoError(err)
-	s.cleanupFuncs["agent helm chart"] = uninstallHelmChart
-
-	time.Sleep(10 * time.Second)
-}
-
-func (s *BasicTestSuite) TearDownSuite() {
-	for name, f := range s.cleanupFuncs {
-		if err := f(s.ctx); err != nil {
-			s.T().Logf("error cleaning up %s: %s", name, err.Error())
-		}
-	}
-
-	// left over from the helm chart installation
-	_ = s.clientset.CoordinationV1().Leases(s.namespace).
-		Delete(s.ctx, "ambassador-agent-lease-lock", v1.DeleteOptions{})
-
-	time.Sleep(time.Second)
+	s.Cleanup(uninstallHelmChart)
 }
