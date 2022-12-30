@@ -6,19 +6,15 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/suite"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
 	itest "github.com/datawire/ambassador-agent/integration_tests"
-	"github.com/datawire/dlib/dlog"
+	"github.com/datawire/dlib/dexec"
 )
 
 const (
@@ -35,19 +31,7 @@ func edgeStackHelmChartURL(version string) string {
 }
 
 type AESTestSuite struct {
-	suite.Suite
-
-	ctx context.Context
-
-	config    *rest.Config
-	clientset *kubernetes.Clientset
-
-	tempDir string
-
-	namespace string
-	name      string
-
-	cleanupFuncs   map[string]itest.CleanupFunc
+	itest.Suite
 	agentComServer *itest.AgentCom
 }
 
@@ -56,42 +40,38 @@ func TestBasicTestSuite_Clusterwide(t *testing.T) {
 }
 
 func (s *AESTestSuite) SetupSuite() {
-	s.cleanupFuncs = make(map[string]itest.CleanupFunc)
-	s.namespace = "ambassador-test"
-	s.name = "ambassador-agent"
-	s.ctx = dlog.NewTestContext(s.T(), false)
-	s.tempDir, _ = os.MkdirTemp("", "")
-
-	kubeconfigPath := os.Getenv("KUBECONFIG")
-	s.Require().NotEmpty(kubeconfigPath)
-
-	var err error
-	s.config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	s.Require().NoError(err)
-	s.clientset, err = kubernetes.NewForConfig(s.config)
+	s.Init()
+	tempDir, err := os.MkdirTemp("", "")
 	s.Require().NoError(err)
 
-	s.Require().NotEmpty(os.Getenv(agentImageEnvVar),
-		"%s needs to be set", agentImageEnvVar,
-	)
+	s.Require().NotEmpty(os.Getenv(agentImageEnvVar), "%s needs to be set", agentImageEnvVar)
+
+	ctx := s.Context()
+	s.Require().NoError(s.CreateNamespace(ctx, s.Namespace()))
+	s.Cleanup(func(ctx context.Context) error {
+		return s.DeleteNamespace(ctx, s.Namespace())
+	})
 
 	// install agentcom server
-	s.agentComServer, err = itest.NewAgentCom("agentcom-server", s.namespace, s.config)
+	s.agentComServer, err = itest.NewAgentCom("agentcom-server", s.Namespace(), s.Config())
 	s.Require().NoError(err)
-	acCleanup, err := s.agentComServer.Install(s.ctx)
+	acCleanup, err := s.agentComServer.Install(ctx)
 	s.Require().NoError(err)
-	s.cleanupFuncs["agentcom server"] = acCleanup
+	s.Cleanup(acCleanup)
 
 	// install edge-stack
-	cmd := exec.Command("kubectl", "apply", "-f", "https://app.getambassador.io/yaml/emissary/3.2.0/emissary-crds.yaml")
-	_, err = cmd.CombinedOutput()
-	s.Require().NoError(err)
+	crds := "https://app.getambassador.io/yaml/emissary/3.2.0/emissary-crds.yaml"
+	cmd := dexec.CommandContext(ctx, "kubectl", "apply", "-f", crds)
+	s.Require().NoError(cmd.Run())
+	s.Cleanup(func(ctx context.Context) error {
+		cmd := dexec.CommandContext(ctx, "kubectl", "delete", "-f", crds)
+		return cmd.Run()
+	})
 
-	cmd = exec.Command("kubectl", "-n", "emissary-system", "wait", "--timeout=90s", "--for=condition=available", "deployment", "emissary-apiext")
-	_, err = cmd.CombinedOutput()
-	s.Require().NoError(err)
+	cmd = dexec.CommandContext(ctx, "kubectl", "-n", "emissary-system", "wait", "--timeout=90s", "--for=condition=available", "deployment", "emissary-apiext")
+	s.Require().NoError(cmd.Run())
 
-	aesChartPath := filepath.Join(s.tempDir, "edge-stack-8.1.0.tgz")
+	aesChartPath := filepath.Join(tempDir, "edge-stack-8.1.0.tgz")
 	file, err := os.Create(aesChartPath)
 	s.Require().NoError(err)
 	defer file.Close()
@@ -104,43 +84,28 @@ func (s *AESTestSuite) SetupSuite() {
 	_, err = io.Copy(file, resp.Body)
 	s.Require().NoError(err)
 
-	cmd = exec.Command("tar", "xzf", "edge-stack-8.1.0.tgz")
-	cmd.Dir = s.tempDir
-	_, err = cmd.CombinedOutput()
-	s.Require().NoError(err)
+	cmd = dexec.CommandContext(ctx, "tar", "xzf", "edge-stack-8.1.0.tgz")
+	cmd.Dir = tempDir
+	s.Require().NoError(cmd.Run())
 
 	fmt.Printf("aesChartPath: %s\n\n", aesChartPath)
 
 	installationConfig := itest.InstallationConfig{
 		ReleaseName: "aes",
-		Namespace:   s.namespace,
-		ChartDir:    filepath.Join(s.tempDir, "edge-stack"),
+		Namespace:   s.Namespace(),
+		ChartDir:    filepath.Join(tempDir, "edge-stack"),
 		Values: map[string]any{
 			"agent": map[string]any{
 				"cloudConnectToken": "TOKEN",
 				"rpcAddress":        s.agentComServer.RPCAddress(),
 			},
 		},
-		RESTConfig: s.config,
+		RESTConfig: s.Config(),
 		Log:        s.T().Logf,
 	}
-	uninstallHelmChart, err := itest.InstallHelmChart(s.ctx, installationConfig)
+	uninstallHelmChart, err := itest.InstallHelmChart(ctx, installationConfig)
 	s.Require().NoError(err)
-	s.cleanupFuncs["aes helm chart"] = uninstallHelmChart
+	s.Cleanup(uninstallHelmChart)
 
 	time.Sleep(10 * time.Second)
-}
-
-func (s *AESTestSuite) TearDownSuite() {
-	for name, f := range s.cleanupFuncs {
-		if err := f(s.ctx); err != nil {
-			s.T().Logf("error cleaning up %s: %s", name, err.Error())
-		}
-	}
-
-	cmd := exec.Command("kubectl", "delete", "-f", "https://app.getambassador.io/yaml/emissary/3.2.0/emissary-crds.yaml")
-	_, err := cmd.CombinedOutput()
-	s.Require().NoError(err)
-
-	time.Sleep(time.Second)
 }
