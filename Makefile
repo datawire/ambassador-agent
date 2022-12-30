@@ -24,11 +24,16 @@ format: $(tools/golangci-lint) ## (QA) Automatically fix linter complaints
 lint: $(tools/golangci-lint) ## (QA) Run the linter
 	$(tools/golangci-lint) run --timeout 8m ./...
 
-.PHONY: generate
-generate: ## (Generate) Update generated files that get checked in to Git
-generate: generate-clean
-generate: $(tools/protoc) $(tools/protoc-gen-go) $(tools/protoc-gen-go-grpc) $(tools/go-mkopensource) $(BUILDDIR)/$(shell go env GOVERSION).src.tar.gz
-generate:
+
+.PHONY: protoc
+protoc: ## (Protoc) Update .pb and .grpc.pb files that get checked in to Git from .proto files
+protoc: protoc-director protoc-rpc
+
+.PHONY: protoc-deps
+protoc-deps: $(tools/protoc) $(tools/protoc-gen-go) $(tools/protoc-gen-go-grpc)
+
+.PHONY: protoc-director
+protoc-director: protoc-deps
 	mkdir -p ./pkg/api
 	$(tools/protoc) \
     	-I=./api \
@@ -37,19 +42,39 @@ generate:
     	--go_out=./pkg/api \
     	--go-grpc_opt=paths=source_relative \
     	--go-grpc_out=./pkg/api \
-    	$(shell find ./api -iname "*.proto") 2>&1 > /dev/null
+    	$(shell find ./api -iname "*.proto")
 
+.PHONY: protoc-rpc
+protoc-rpc: protoc-deps
+	$(tools/protoc) \
+		-I rpc \
+		--go_out=./rpc \
+		--go_opt=module=github.com/datawire/ambassador-agent/rpc \
+		--go-grpc_out=./rpc \
+		--go-grpc_opt=module=github.com/datawire/ambassador-agent/rpc \
+		--proto_path=. \
+		$$(find ./rpc/ -name '*.proto')
+
+.PHONY: generate
+generate: ## (Generate) Update generated files that get checked in to Git
+generate: generate-clean
+generate: protoc $(tools/go-mkopensource) $(BUILDDIR)/$(shell go env GOVERSION).src.tar.gz
+generate:
+	cd ./rpc && export GOFLAGS=-mod=mod && go mod tidy && go mod vendor && rm -rf vendor
+
+	export GOFLAGS=-mod=mod && go mod tidy && go mod vendor
 
 	mkdir -p $(BUILDDIR)
-		$(tools/go-mkopensource) --gotar=$(filter %.src.tar.gz,$^) --output-format=txt --package=mod --application-type=external  \
-			--unparsable-packages build-aux/unparsable-packages.yaml >$(BUILDDIR)/DEPENDENCIES.txt
-		sed 's/\(^.*the Go language standard library ."std".[ ]*v[1-9]\.[1-9]*\)\..../\1    /' $(BUILDDIR)/DEPENDENCIES.txt >DEPENDENCIES.md
+	$(tools/go-mkopensource) --gotar=$(filter %.src.tar.gz,$^) --output-format=txt --package=mod --application-type=external  \
+		--unparsable-packages build-aux/unparsable-packages.yaml >$(BUILDDIR)/DEPENDENCIES.txt
+	sed 's/\(^.*the Go language standard library ."std".[ ]*v[1-9]\.[1-9]*\)\..../\1    /' $(BUILDDIR)/DEPENDENCIES.txt >DEPENDENCIES.md
 
-		printf "ambassador-agent incorporates Free and Open Source software under the following licenses:\n\n" > DEPENDENCY_LICENSES.md
-		$(tools/go-mkopensource) --gotar=$(filter %.src.tar.gz,$^) --output-format=txt --package=mod \
-			--output-type=json --application-type=external --unparsable-packages build-aux/unparsable-packages.yaml > $(BUILDDIR)/DEPENDENCIES.json
-		jq -r '.licenseInfo | to_entries | .[] | "* [" + .key + "](" + .value + ")"' $(BUILDDIR)/DEPENDENCIES.json > $(BUILDDIR)/LICENSES.txt
-		sed -e 's/\[\([^]]*\)]()/\1/' $(BUILDDIR)/LICENSES.txt >> DEPENDENCY_LICENSES.md
+	printf "ambassador-agent incorporates Free and Open Source software under the following licenses:\n\n" > DEPENDENCY_LICENSES.md
+	$(tools/go-mkopensource) --gotar=$(filter %.src.tar.gz,$^) --output-format=txt --package=mod \
+		--output-type=json --application-type=external --unparsable-packages build-aux/unparsable-packages.yaml > $(BUILDDIR)/DEPENDENCIES.json
+	jq -r '.licenseInfo | to_entries | .[] | "* [" + .key + "](" + .value + ")"' $(BUILDDIR)/DEPENDENCIES.json > $(BUILDDIR)/LICENSES.txt
+	sed -e 's/\[\([^]]*\)]()/\1/' $(BUILDDIR)/LICENSES.txt >> DEPENDENCY_LICENSES.md
+	rm -rf vendor
 
 .PHONY: generate-clean
 generate-clean: ## (Generate) Delete generated files
