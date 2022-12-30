@@ -70,8 +70,8 @@ image-tar: image
 	docker save $(IMAGE) > ./build-output/ambassador-agent-image.tar
 
 .PHONY: itest
-itest: image-push
-	go test -count=1 ./integration_tests/...
+itest:
+	go test -p 1 ./integration_tests/...
 
 .PHONY: unit-test
 unit-test:
