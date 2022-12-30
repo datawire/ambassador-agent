@@ -35,6 +35,8 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+            - name: grpc
+              containerPort: {{ .Values.apiPort }}
           env:
             - name: LOG_LEVEL
               value: {{ .Values.logLevel | quote }}
@@ -58,6 +60,8 @@ spec:
             - name: NAMESPACES_TO_WATCH
               value: {{ join " " .Values.rbac.namespaces }}
             {{ end }}
+            - name: SERVER_PORT
+              value: {{ .Values.apiPort | quote }}
   {{ if .Values.progressDeadline }}
   progressDeadlineSeconds: {{ .Values.progressDeadline }}
   {{- end }}
