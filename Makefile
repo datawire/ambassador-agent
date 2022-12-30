@@ -5,16 +5,22 @@ BUILDDIR=build-output
 
 include build-aux/tools.mk
 
+# DOCKER_BUILDKIT is _required_ by our Dockerfile, since we use
+# Dockerfile extensions for the Go build cache.  See
+# https://github.com/moby/buildkit/blob/master/frontend/dockerfile/docs/syntax.md.
+export DOCKER_BUILDKIT := 1
+
 $(BUILDDIR)/go1%.src.tar.gz:
 	mkdir -p $(BUILDDIR)
 	curl -o $@ --fail -L https://dl.google.com/go/$(@F)
 
 .PHONY: build
 build:
+	mkdir -p $(BUILDDIR)/bin
 	CGO_ENABLED=0 go build \
 	-trimpath \
 	-ldflags=-X=main.version=${A8R_AGENT_VERSION} \
-	-o=ambassador-agent \
+	-o=$(BUILDDIR)/bin/ambassador-agent \
 	./cmd/main.go
 
 .PHONY: format
