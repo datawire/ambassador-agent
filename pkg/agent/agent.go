@@ -25,6 +25,7 @@ import (
 
 	"github.com/datawire/ambassador-agent/pkg/agent/watchers"
 	"github.com/datawire/ambassador-agent/pkg/api/agent"
+	rpc "github.com/datawire/ambassador-agent/rpc/agent"
 	"github.com/datawire/dlib/dlog"
 	"github.com/datawire/k8sapi/pkg/k8sapi"
 	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
@@ -53,10 +54,9 @@ type Comm interface {
 }
 
 // Agent is the component that talks to the DCP Director, which is a cloud
-// service run by Datawire.
+// service run by Datawire. It is also gRPC AgentServer in itself.
 type Agent struct {
-	// Connectivity to the Director
-
+	rpc.UnsafeAgentServer
 	*Env
 	comm             Comm
 	agentID          *agent.Identity
@@ -108,6 +108,7 @@ type Agent struct {
 	// Stand-alone config
 	emissaryPresent bool   // if not installed by emissary, generate snapshots
 	clusterId       string // cluster id used in generated snapshots
+	clusterDomain   string // the cluster domain name, e.g. .cluster.local
 
 	// snapshot watchers
 	coreWatchers    watchers.SnapshotWatcher
@@ -115,6 +116,9 @@ type Agent struct {
 	// config watchers
 	configWatchers    *ConfigWatchers
 	ambassadorWatcher *AmbassadorWatcher
+
+	currentSnapshotMutex sync.Mutex
+	currentSnapshot      *snapshotTypes.Snapshot
 }
 
 // NewAgent returns a new Agent.
@@ -143,6 +147,16 @@ func NewAgent(
 		)
 	}
 
+	apiSvc := "kubernetes.default"
+	var clusterDomain string
+	if cn, err := net.LookupCNAME(apiSvc); err != nil {
+		dlog.Infof(ctx, `Unable to determine cluster domain from CNAME of %s: %v"`, err, apiSvc)
+		clusterDomain = "cluster.local"
+	} else {
+		clusterDomain = cn[len(apiSvc)+5 : len(cn)-1] // Strip off "kubernetes.default.svc." and trailing dot
+	}
+	dlog.Infof(ctx, "Using cluster domain %q", clusterDomain)
+
 	return &Agent{
 		Env:            env,
 		reportComplete: make(chan error),
@@ -159,6 +173,7 @@ func NewAgent(
 		configWatchers:    NewConfigWatchers(ctx, env.AgentNamespace),
 		ambassadorWatcher: NewAmbassadorWatcher(ctx, env.AgentNamespace),
 		fallbackWatcher:   watchers.NewFallbackWatcher(ctx, env.NamespacesToWatch, objectModifier),
+		clusterDomain:     clusterDomain,
 	}
 }
 
@@ -662,6 +677,10 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 		dlog.Errorf(ctx, "Error sanitizing snapshot: %v", err)
 		return err
 	}
+	a.currentSnapshotMutex.Lock()
+	a.currentSnapshot = snapshot
+	a.currentSnapshotMutex.Unlock()
+
 	rawJsonSnapshot, err := json.Marshal(snapshot)
 	if err != nil {
 		dlog.Errorf(ctx, "Error marshalling snapshot: %v", err)
