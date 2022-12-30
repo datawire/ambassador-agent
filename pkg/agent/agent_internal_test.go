@@ -220,6 +220,7 @@ func newTestEnv(pairs ...string) testEnv {
 		"CLOUD_CONNECT_TOKEN": "secretvalue",
 		"AES_SNAPSHOT_URL":    "http://ambassador-host:12345/snapshot-external",
 		"AES_DIAGNOSTIC_URL":  "http://ambassador-host:54321/ambassador/v0/diag/?json=true",
+		"SERVER_PORT":         "8081",
 	}
 	pl := len(pairs) - 1
 	for i := 0; i < pl; i += 2 {

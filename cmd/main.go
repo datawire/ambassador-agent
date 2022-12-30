@@ -12,6 +12,7 @@ import (
 	"github.com/datawire/ambassador-agent/pkg/agent"
 	"github.com/datawire/dlib/dgroup"
 	"github.com/datawire/dlib/dlog"
+	"github.com/datawire/k8sapi/pkg/k8sapi"
 )
 
 func main() {
@@ -34,8 +35,8 @@ func main() {
 		os.Exit(1)
 	}
 	// creates the clientset
-	clientset := kubernetes.NewForConfigOrDie(config)
-	ambAgent := agent.NewAgent(ctx, nil, agent.NewArgoRolloutsGetter, agent.NewSecretsGetter, clientset, env)
+	ctx = k8sapi.WithK8sInterface(ctx, kubernetes.NewForConfigOrDie(config))
+	ambAgent := agent.NewAgent(ctx, nil, agent.NewArgoRolloutsGetter, agent.NewSecretsGetter, env)
 
 	ambAgent.SetReportDiagnosticsAllowed(env.AESReportDiagnostics)
 
@@ -51,7 +52,6 @@ func main() {
 		metricsServer := agent.NewMetricsServer(ambAgent.MetricsRelayHandler)
 		return metricsServer.Serve(ctx, metricsListener)
 	})
-
 	grp.Go("watch", ambAgent.Watch)
 
 	err = grp.Wait()

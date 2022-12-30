@@ -4,8 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"k8s.io/client-go/kubernetes"
-
 	"github.com/datawire/k8sapi/pkg/k8sapi"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 )
@@ -15,8 +13,8 @@ type AmbassadorWatcher struct {
 	endpointWatcher *k8sapi.Watcher[*kates.Endpoints]
 }
 
-func NewAmbassadorWatcher(clientset *kubernetes.Clientset, ns string) *AmbassadorWatcher {
-	coreClient := clientset.CoreV1().RESTClient()
+func NewAmbassadorWatcher(ctx context.Context, ns string) *AmbassadorWatcher {
+	coreClient := k8sapi.GetK8sInterface(ctx).CoreV1().RESTClient()
 
 	cond := &sync.Cond{
 		L: &sync.Mutex{},
@@ -29,11 +27,12 @@ func NewAmbassadorWatcher(clientset *kubernetes.Clientset, ns string) *Ambassado
 	}
 
 	return &AmbassadorWatcher{
-		cond:            cond,
-		endpointWatcher: k8sapi.NewWatcher("endpoints", ns, coreClient, &kates.Endpoints{}, cond, equalsFunc),
+		cond: cond,
+		endpointWatcher: k8sapi.NewWatcher[*kates.Endpoints](
+			"endpoints", coreClient, cond, k8sapi.WithNamespace[*kates.Endpoints](ns), k8sapi.WithEquals(equalsFunc)),
 	}
 }
 
-func (w *AmbassadorWatcher) EnsureStarted(ctx context.Context) {
-	w.endpointWatcher.EnsureStarted(ctx, nil)
+func (w *AmbassadorWatcher) EnsureStarted(ctx context.Context) error {
+	return w.endpointWatcher.EnsureStarted(ctx, nil)
 }
