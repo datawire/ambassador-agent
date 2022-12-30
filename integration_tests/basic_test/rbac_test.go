@@ -5,12 +5,14 @@ import (
 )
 
 func (s *BasicTestSuite) TestRBAC() {
-	roles, err := s.clientset.RbacV1().Roles("default").List(s.ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/name=" + s.name,
+	rbacIF := s.K8sIf().RbacV1()
+	ctx := s.Context()
+	roles, err := rbacIF.Roles("default").List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=" + s.Name(),
 	})
 	s.Require().NoError(err)
 
-	cr, err := s.clientset.RbacV1().ClusterRoles().Get(s.ctx, s.name, metav1.GetOptions{})
+	cr, err := rbacIF.ClusterRoles().Get(ctx, s.Name(), metav1.GetOptions{})
 	if 0 < len(s.namespaces) {
 		s.Require().Error(err)
 		s.Contains(err.Error(), "not found")

@@ -45,7 +45,6 @@ func InstallHelmChart(ctx context.Context, config InstallationConfig) (CleanupFu
 	install := action.NewInstall(&actionConfig)
 	install.ReleaseName = config.ReleaseName
 	install.Namespace = config.Namespace
-	install.CreateNamespace = true
 
 	release, err := install.RunWithContext(ctx, chart, config.Values)
 	if err != nil {
