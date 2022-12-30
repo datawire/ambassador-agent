@@ -11,7 +11,7 @@ RUN \
     make build
 
 FROM alpine:3.15
-COPY --from=build-stage /build/ambassador-agent /usr/local/bin
+COPY --from=build-stage /build/build-output/bin/ambassador-agent /usr/local/bin
 
 EXPOSE 8080
 
