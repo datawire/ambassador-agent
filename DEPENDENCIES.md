@@ -20,6 +20,7 @@ following Free and Open Source software:
     github.com/cncf/xds/go                            v0.0.0-20220121163655-4a2b9fdd466b    Apache License 2.0
     github.com/containerd/containerd                  v1.6.6                                Apache License 2.0
     github.com/cyphar/filepath-securejoin             v0.2.3                                3-clause BSD license
+    github.com/datawire/ambassador-agent/rpc          (modified)                            Apache License 2.0
     github.com/datawire/dlib                          v1.3.1-0.20221228104658-e373c6d44961  Apache License 2.0
     github.com/datawire/envconfig                     v0.0.0-20221012222025-09524dc7d59b    Apache License 2.0
     github.com/datawire/k8sapi                        v0.1.2                                Apache License 2.0
@@ -130,7 +131,7 @@ following Free and Open Source software:
     golang.org/x/text                                 v0.5.0                                3-clause BSD license
     golang.org/x/time                                 v0.0.0-20220609170525-579cf78fd858    3-clause BSD license
     google.golang.org/appengine                       v1.6.7                                Apache License 2.0
-    google.golang.org/genproto                        v0.0.0-20220712132514-bdd2acd4974d    Apache License 2.0
+    google.golang.org/genproto                        v0.0.0-20220923205249-dd2d53f1fffc    Apache License 2.0
     google.golang.org/grpc                            v1.51.0                               Apache License 2.0
     google.golang.org/protobuf                        v1.28.1                               3-clause BSD license
     gopkg.in/inf.v0                                   v0.9.1                                3-clause BSD license
