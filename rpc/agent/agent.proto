@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package agent;
+
+option go_package = "github.com/datawire/ambassador-agent/rpc/agent";
+
+// Agent is the API that the ambassador agent makes available to the Telepresence Traffic Manager.
+service Agent {
+  rpc ResolveIngress(IngressInfoRequest) returns (IngressInfoResponse);
+}
+
+// IngressInfoRequest represents the intercept properties required to resolve ingress info.
+message IngressInfoRequest {
+  string namespace = 1;
+  string service_id = 2;
+  string service_name = 3;
+  string service_port_name = 4;
+  int32 service_port_number = 5;
+}
+
+// IngressInfoResponse represents the ingress properties required to configure a preview url.
+message IngressInfoResponse {
+  string l3_host = 1;
+  int32 port = 2;
+  bool use_tls = 3;
+  string l5_host = 4;
+}
