@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package ambassador.agent;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/datawire/ambassador-agent/rpc/agent";
+
+// Agent is the API that the ambassador agent makes available to the Telepresence Traffic Manager.
+service Agent {
+  rpc Version(google.protobuf.Empty) returns (VersionInfo);
+  rpc ResolveIngress(IngressInfoRequest) returns (IngressInfoResponse);
+}
+
+message VersionInfo {
+  string name = 1;
+  string version = 2;
+}
+
+// IngressInfoRequest represents the intercept properties required to resolve ingress info.
+message IngressInfoRequest {
+  string namespace = 1;
+  string service_id = 2;
+  string service_name = 3;
+  string service_port_name = 4;
+  string service_port_proto = 5;
+  int32 service_port_number = 6;
+}
+
+// IngressInfoResponse represents the ingress properties required to configure a preview url.
+message IngressInfoResponse {
+  string l3_host = 1;
+  string l4_proto = 2;
+  int32 port = 3;
+  bool use_tls = 4;
+  string l5_host = 5;
+}
