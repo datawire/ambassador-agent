@@ -4,24 +4,23 @@ import (
 	"context"
 	"sync"
 
-	"k8s.io/client-go/kubernetes"
+	core "k8s.io/api/core/v1"
 
 	"github.com/datawire/dlib/dlog"
 	"github.com/datawire/k8sapi/pkg/k8sapi"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 )
 
 type FallbackWatchers struct {
 	cond            *sync.Cond
-	serviceWatchers k8sapi.WatcherGroup[*kates.Service]
+	serviceWatchers k8sapi.WatcherGroup[*core.Service]
 	ingressWatchers ingressWatcher
 
 	om ObjectModifier
 }
 
-func NewFallbackWatcher(ctx context.Context, clientset *kubernetes.Clientset, namespaces []string, om ObjectModifier) *FallbackWatchers {
-	coreClient := clientset.CoreV1().RESTClient()
+func NewFallbackWatcher(ctx context.Context, namespaces []string, om ObjectModifier) *FallbackWatchers {
+	coreClient := k8sapi.GetK8sInterface(ctx).CoreV1().RESTClient()
 
 	cond := &sync.Cond{
 		L: &sync.Mutex{},
@@ -29,14 +28,15 @@ func NewFallbackWatcher(ctx context.Context, clientset *kubernetes.Clientset, na
 
 	// TODO equals func to prevent over-broadcasting
 	siWatcher := &FallbackWatchers{
-		serviceWatchers: k8sapi.NewWatcherGroup[*kates.Service](),
-		ingressWatchers: getIngressWatcher(ctx, clientset, namespaces, cond, om),
+		serviceWatchers: k8sapi.NewWatcherGroup[*core.Service](),
+		ingressWatchers: getIngressWatcher(ctx, namespaces, cond, om),
 		cond:            cond,
 		om:              om,
 	}
 
 	for _, ns := range namespaces {
-		_ = siWatcher.serviceWatchers.AddWatcher(k8sapi.NewWatcher("services", ns, coreClient, &kates.Service{}, cond, nil))
+		_ = siWatcher.serviceWatchers.AddWatcher(
+			k8sapi.NewWatcher[*core.Service]("services", coreClient, cond, k8sapi.WithNamespace[*core.Service](ns)))
 	}
 
 	return siWatcher

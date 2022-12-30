@@ -7,12 +7,12 @@ import (
 
 	"github.com/google/uuid"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"github.com/datawire/dlib/dlog"
+	"github.com/datawire/k8sapi/pkg/k8sapi"
 )
 
-func (a *Agent) getClusterID(ctx context.Context, client *kubernetes.Clientset, nsName string) string {
+func (a *Agent) getClusterID(ctx context.Context, nsName string) string {
 	clusterID := a.ClusterID
 	if clusterID != "" {
 		dlog.Infof(ctx, "Using cluster ID from env %s", clusterID)
@@ -23,7 +23,7 @@ func (a *Agent) getClusterID(ctx context.Context, client *kubernetes.Clientset, 
 
 	rootID := "00000000-0000-0000-0000-000000000000"
 
-	ns, err := client.CoreV1().Namespaces().Get(ctx, nsName, v1.GetOptions{})
+	ns, err := k8sapi.GetK8sInterface(ctx).CoreV1().Namespaces().Get(ctx, nsName, v1.GetOptions{})
 	if err == nil {
 		rootID = string(ns.GetUID())
 	}

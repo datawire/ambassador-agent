@@ -37,24 +37,24 @@ func (n *networkWatcher) Cancel() {
 }
 
 func (n *networkWatcher) convertStatus(ing *networking.Ingress) extv1beta1.IngressStatus {
-	lbis := []corev1.LoadBalancerIngress{}
-	for _, lbi := range ing.Status.LoadBalancer.Ingress {
-		ports := []corev1.PortStatus{}
-		for _, port := range lbi.Ports {
-			ports = append(ports, corev1.PortStatus{
+	lbis := make([]extv1beta1.IngressLoadBalancerIngress, len(ing.Status.LoadBalancer.Ingress))
+	for i, lbi := range ing.Status.LoadBalancer.Ingress {
+		ports := make([]extv1beta1.IngressPortStatus, len(lbi.Ports))
+		for pi, port := range lbi.Ports {
+			ports[pi] = extv1beta1.IngressPortStatus{
 				Port:     port.Port,
 				Error:    port.Error,
 				Protocol: corev1.Protocol(port.Protocol),
-			})
+			}
 		}
-		lbis = append(lbis, corev1.LoadBalancerIngress{
+		lbis[i] = extv1beta1.IngressLoadBalancerIngress{
 			IP:       lbi.IP,
 			Hostname: lbi.Hostname,
 			Ports:    ports,
-		})
+		}
 	}
 	return extv1beta1.IngressStatus{
-		LoadBalancer: corev1.LoadBalancerStatus{
+		LoadBalancer: extv1beta1.IngressLoadBalancerStatus{
 			Ingress: lbis,
 		},
 	}
@@ -135,7 +135,7 @@ func (n *networkWatcher) List(ctx context.Context) ([]*k8s_resource_types.Ingres
 	return result, nil
 }
 
-func isNetworkingAPIAvailable(ctx context.Context, clientset *kubernetes.Clientset, namespaces []string) bool {
+func isNetworkingAPIAvailable(ctx context.Context, clientset kubernetes.Interface, namespaces []string) bool {
 	ns := ""
 	if len(namespaces) > 0 {
 		ns = namespaces[0]
@@ -155,19 +155,20 @@ func isNetworkingAPIAvailable(ctx context.Context, clientset *kubernetes.Clients
 	return true
 }
 
-func getIngressWatcher(ctx context.Context, clientset *kubernetes.Clientset, namespaces []string, cond *sync.Cond, om ObjectModifier) ingressWatcher {
-	if isNetworkingAPIAvailable(ctx, clientset, namespaces) {
-		netClient := clientset.NetworkingV1().RESTClient()
+func getIngressWatcher(ctx context.Context, namespaces []string, cond *sync.Cond, om ObjectModifier) ingressWatcher {
+	k8sif := k8sapi.GetK8sInterface(ctx)
+	if isNetworkingAPIAvailable(ctx, k8sif, namespaces) {
+		netClient := k8sif.NetworkingV1().RESTClient()
 		watcher := k8sapi.NewWatcherGroup[*networking.Ingress]()
 		for _, ns := range namespaces {
-			_ = watcher.AddWatcher(k8sapi.NewWatcher("ingresses", ns, netClient, &networking.Ingress{}, cond, nil))
+			_ = watcher.AddWatcher(k8sapi.NewWatcher[*networking.Ingress]("ingresses", netClient, cond, k8sapi.WithNamespace[*networking.Ingress](ns)))
 		}
 		return &networkWatcher{watcher: watcher, om: om}
 	}
-	netClient := clientset.ExtensionsV1beta1().RESTClient()
+	netClient := k8sif.ExtensionsV1beta1().RESTClient()
 	watcher := k8sapi.NewWatcherGroup[*k8s_resource_types.Ingress]()
 	for _, ns := range namespaces {
-		_ = watcher.AddWatcher(k8sapi.NewWatcher("ingresses", ns, netClient, &k8s_resource_types.Ingress{}, cond, nil))
+		_ = watcher.AddWatcher(k8sapi.NewWatcher[*k8s_resource_types.Ingress]("ingresses", netClient, cond, k8sapi.WithNamespace[*k8s_resource_types.Ingress](ns)))
 	}
 	return watcher
 }
