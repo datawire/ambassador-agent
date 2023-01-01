@@ -1,4 +1,7 @@
-A8R_AGENT_VERSION ?= dev-latest
+A8R_AGENT_VERSION ?= $(shell unset GOOS GOARCH; go run ./build-aux/genversion)
+# Ensure that the variable is fully expanded. We don't want to call genversion repeatedly
+# as it may produce different results every time.
+A8R_AGENT_VERSION := ${A8R_AGENT_VERSION}
 DEV_REGISTRY ?= datawiredev
 IMAGE = ${DEV_REGISTRY}/ambassador-agent:${A8R_AGENT_VERSION}
 BUILDDIR=build-output
@@ -14,12 +17,14 @@ $(BUILDDIR)/go1%.src.tar.gz:
 	mkdir -p $(BUILDDIR)
 	curl -o $@ --fail -L https://dl.google.com/go/$(@F)
 
+PKG_AGENT = $(shell go list ./pkg/agent)
+
 .PHONY: build
 build:
 	mkdir -p $(BUILDDIR)/bin
 	CGO_ENABLED=0 go build \
 	-trimpath \
-	-ldflags=-X=main.version=${A8R_AGENT_VERSION} \
+	-ldflags=-X=$(PKG_AGENT).Version=$(A8R_AGENT_VERSION) \
 	-o=$(BUILDDIR)/bin/ambassador-agent \
 	./cmd/main.go
 
@@ -89,10 +94,23 @@ generate-clean: ## (Generate) Delete generated files
 
 .PHONY: image
 image:
-	docker build --tag $(IMAGE) .
+	docker build --build-arg A8R_AGENT_VERSION=$(A8R_AGENT_VERSION) --tag $(IMAGE) .
 
-.PHONY: image-push
-image-push: image
+.PHONY: push-ximage
+push-image: image
+	if docker pull $(IMAGE); then \
+	  print "Failure: Tag already exists"; \
+	  exit 1; \
+	fi
+	docker buildx build --build-arg A8R_AGENT_VERSION=$(A8R_AGENT_VERSION) --push --platform=linux/amd64,linux/arm64 --tag=$(IMAGE) .
+
+.PHONY: push-image
+push-image: image
+	if docker pull $(IMAGE); then \
+	  print "Failure: Tag already exists"; \
+	  exit 1; \
+	fi
+	docker build --build-arg A8R_AGENT_VERSION=$(A8R_AGENT_VERSION) --tag=$(IMAGE) .
 	docker push $(IMAGE)
 
 .PHONY: image-tar
