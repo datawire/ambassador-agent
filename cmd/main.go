@@ -28,6 +28,8 @@ func main() {
 
 	logger.SetLevel(env.LogLevel)
 
+	dlog.Infof(ctx, "ambassador-agent %s", agent.Version)
+
 	// creates the in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {

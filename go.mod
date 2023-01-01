@@ -75,6 +75,7 @@ exclude (
 
 require (
 	github.com/argoproj/argo-rollouts v1.3.2
+	github.com/blang/semver v3.5.1+incompatible
 	github.com/datawire/ambassador-agent/rpc v0.0.0-20221012222025-09524dc7d59b
 	github.com/datawire/dlib v1.3.1-0.20221228104658-e373c6d44961
 	github.com/datawire/envconfig v0.0.0-20221012222025-09524dc7d59b
@@ -84,6 +85,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_model v0.3.0
+	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.1
 	google.golang.org/grpc v1.51.0

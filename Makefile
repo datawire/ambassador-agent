@@ -1,4 +1,7 @@
-A8R_AGENT_VERSION ?= dev-latest
+A8R_AGENT_VERSION ?= $(shell unset GOOS GOARCH; go run ./build-aux/genversion)
+# Ensure that the variable is fully expanded. We don't want to call genversion repeatedly
+# as it may produce different results every time.
+A8R_AGENT_VERSION := ${A8R_AGENT_VERSION}
 DEV_REGISTRY ?= datawiredev
 IMAGE = ${DEV_REGISTRY}/ambassador-agent:${A8R_AGENT_VERSION}
 BUILDDIR=build-output
@@ -19,7 +22,7 @@ build:
 	mkdir -p $(BUILDDIR)/bin
 	CGO_ENABLED=0 go build \
 	-trimpath \
-	-ldflags=-X=main.version=${A8R_AGENT_VERSION} \
+	-ldflags=-X=pkg.agent.Version=${A8R_AGENT_VERSION} \
 	-o=$(BUILDDIR)/bin/ambassador-agent \
 	./cmd/main.go
 
@@ -89,7 +92,7 @@ generate-clean: ## (Generate) Delete generated files
 
 .PHONY: image
 image:
-	docker build --tag $(IMAGE) .
+	docker build --build-arg A8R_AGENT_VERSION=$(A8R_AGENT_VERSION) --tag $(IMAGE) .
 
 .PHONY: image-push
 image-push: image
