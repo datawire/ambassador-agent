@@ -15,6 +15,7 @@ following Free and Open Source software:
     github.com/armon/go-metrics                       v0.3.10                               MIT license
     github.com/asaskevich/govalidator                 v0.0.0-20210307081110-f21760c49a8d    MIT license
     github.com/beorn7/perks                           v1.0.1                                MIT license
+    github.com/blang/semver                           v3.5.1+incompatible                   MIT license
     github.com/cespare/xxhash/v2                      v2.1.2                                MIT license
     github.com/chai2010/gettext-go                    v1.0.2                                3-clause BSD license
     github.com/cncf/xds/go                            v0.0.0-20220121163655-4a2b9fdd466b    Apache License 2.0
@@ -110,6 +111,7 @@ following Free and Open Source software:
     github.com/prometheus/procfs                      v0.8.0                                Apache License 2.0
     github.com/rubenv/sql-migrate                     v1.1.2                                MIT license
     github.com/russross/blackfriday/v2                v2.1.0                                2-clause BSD license
+    github.com/sabhiram/go-gitignore                  v0.0.0-20210923224102-525f6e181f06    MIT license
     github.com/shopspring/decimal                     v1.2.0                                MIT license
     github.com/sirupsen/logrus                        v1.9.0                                MIT license
     github.com/spf13/cast                             v1.4.1                                MIT license
