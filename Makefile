@@ -3,7 +3,8 @@ A8R_AGENT_VERSION ?= $(shell unset GOOS GOARCH; go run ./build-aux/genversion)
 # as it may produce different results every time.
 A8R_AGENT_VERSION := ${A8R_AGENT_VERSION}
 DEV_REGISTRY ?= datawiredev
-IMAGE = ${DEV_REGISTRY}/ambassador-agent:${A8R_AGENT_VERSION}
+IMAGE_VERSION = $(patsubst v%,%,$(A8R_AGENT_VERSION))
+IMAGE = ${DEV_REGISTRY}/ambassador-agent:${IMAGE_VERSION}
 BUILDDIR=build-output
 
 include build-aux/tools.mk

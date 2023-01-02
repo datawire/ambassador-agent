@@ -21,7 +21,7 @@ type Env struct {
 	ScoutID              string       `env:"AMBASSADOR_SCOUT_ID,             parser=string,       default="`
 	ClusterID            string       `env:"AMBASSADOR_CLUSTER_ID,           parser=string,       defaultFrom=ScoutID"`
 	AmbassadorID         string       `env:"AMBASSADOR_ID,                   parser=string,       default=default"`
-	AmbassadorAPIKey     string       `env:"CLOUD_CONNECT_TOKEN,             parser=string"`
+	AmbassadorAPIKey     string       `env:"CLOUD_CONNECT_TOKEN,             parser=string,       default="`
 	ConnAddress          *ConnInfo    `env:"RPC_CONNECTION_ADDRESS,          parser=conn-info,    default="`
 
 	// config map/secret information

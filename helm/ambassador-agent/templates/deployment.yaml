@@ -59,9 +59,9 @@ spec:
             {{ if .Values.rbac.namespaces }}
             - name: NAMESPACES_TO_WATCH
               value: {{ join "," .Values.rbac.namespaces }}
+            {{ end }}
             - name: SERVER_PORT
               value: {{ .Values.apiPort | quote }}
-            {{ end }}
   {{ if .Values.progressDeadline }}
   progressDeadlineSeconds: {{ .Values.progressDeadline }}
   {{- end }}
