@@ -14,19 +14,19 @@ jobs:
           remove-labels: "ok to test"
         if: always()
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
           ref: "${{ github.event.pull_request.head.sha }}"
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
-          go-version: "1.19"
+          go-version: stable
       - name: Build image
         run: |
           make image-tar
       - name: Upload image
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: image
           path: build-output/ambassador-agent-image.tar
@@ -35,7 +35,7 @@ jobs:
     needs: build_image
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
           ref: "${{ github.event.pull_request.head.sha }}"
@@ -43,17 +43,15 @@ jobs:
         uses: ./.github/actions/rerun-cache
         id: get_last_run
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
-          go-version: "1.19"
+          go-version: stable
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v1
+        uses: azure/setup-kubectl@v3
         id: kubectl
         if: steps.get_last_run.outputs.passed != 'success'
-        with:
-          version: v1.19.3
-      - name: Download image 
-        uses: actions/download-artifact@v2
+      - name: Download image
+        uses: actions/download-artifact@v3
         if: steps.get_last_run.outputs.passed != 'success'
         with:
           name: image
@@ -67,7 +65,7 @@ jobs:
           github-sha: ${{ github.event.pull_request.head.sha }}
       - name: Run tests
         if: steps.get_last_run.outputs.passed != 'success'
-        uses: nick-invision/retry@v2.4.0
+        uses: nick-invision/retry@v2
         with:
           max_attempts: 3
           timeout_minutes: 15
