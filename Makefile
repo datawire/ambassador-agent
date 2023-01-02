@@ -3,7 +3,8 @@ A8R_AGENT_VERSION ?= $(shell unset GOOS GOARCH; go run ./build-aux/genversion)
 # as it may produce different results every time.
 A8R_AGENT_VERSION := ${A8R_AGENT_VERSION}
 DEV_REGISTRY ?= datawiredev
-IMAGE = ${DEV_REGISTRY}/ambassador-agent:${A8R_AGENT_VERSION}
+IMAGE_VERSION = $(patsubst v%,%,$(A8R_AGENT_VERSION))
+IMAGE = ${DEV_REGISTRY}/ambassador-agent:${IMAGE_VERSION}
 BUILDDIR=build-output
 
 include build-aux/tools.mk
@@ -94,9 +95,13 @@ generate-clean: ## (Generate) Delete generated files
 image:
 	docker build --build-arg A8R_AGENT_VERSION=$(A8R_AGENT_VERSION) --tag $(IMAGE) .
 
-.PHONY: image-push
-image-push: image
-	docker push $(IMAGE)
+.PHONY: push-image
+push-image: image
+	if docker pull $(IMAGE); then \
+	  print "Failure: Tag already exists"; \
+	  exit 1; \
+	fi
+	docker buildx build --build-arg A8R_AGENT_VERSION=$(A8R_AGENT_VERSION) --push --platform=linux/amd64,linux/arm64 --tag=$(IMAGE) .
 
 .PHONY: image-tar
 image-tar: image
