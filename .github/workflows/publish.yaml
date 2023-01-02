@@ -42,17 +42,7 @@ jobs:
     - name: Available platforms
       run: echo ${{ steps.buildx.outputs.platforms }}
 
-    - name: Extract version
-      run: |
-        TAG=${GITHUB_REF#refs/*/v}
-        echo "Going to build and publish: ${TAG}"
-        echo "TAG=${TAG}" >> $GITHUB_ENV
-
     - name: Build and Publish
-      run: |
-        if docker pull ambassador/ambassador-agent:${{ env.TAG }}; then
-          echo "Failure: Tag already exists"
-          exit 1
-        fi 
-        docker buildx build --push --platform=linux/amd64,linux/arm64 --tag=ambassador/ambassador-agent:${{ env.TAG }} .
-
+      env:
+        A8R_AGENT_VERSION: ${{ github.ref_name }}
+      run: make push-image
