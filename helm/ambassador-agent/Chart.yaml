@@ -2,5 +2,5 @@ apiVersion: v2
 name: ambassador-agent
 description: The Ambassador Agent populates the Developer Control Plane in Ambassador Cloud.
 type: application
-version: 1.0.0
+version: 1.0.5-alpha.4
 appVersion: 1.0.0
