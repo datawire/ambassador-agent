@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
           ref: "${{ github.event.pull_request.head.sha }}"
@@ -14,9 +14,9 @@ jobs:
         uses: ./.github/actions/rerun-cache
         id: get_last_run
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
-          go-version: "1.19"
+          go-version: stable
       - name: Lint
         run: make lint
       - name: Run Tests
