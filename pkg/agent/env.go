@@ -48,7 +48,7 @@ type Env struct {
 	ServerHost string `env:"SERVER_HOST, parser=string,      default="`
 
 	// ServerPort is the port tha the gRPC server is listening on.
-	ServerPort uint16 `env:"SERVER_PORT, parser=port-number"`
+	ServerPort uint16 `env:"SERVER_PORT, parser=port-number, default=8081"`
 }
 
 func fieldTypeHandlers() map[reflect.Type]envconfig.FieldTypeHandler {

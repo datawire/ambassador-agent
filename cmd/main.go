@@ -55,7 +55,7 @@ func main() {
 		return metricsServer.Serve(ctx, metricsListener)
 	})
 	grp.Go("watch", ambAgent.Watch)
-	grp.Go("agent-server", ambAgent.Service)
+	// grp.Go("agent-server", ambAgent.Service)
 
 	err = grp.Wait()
 	if err != nil {

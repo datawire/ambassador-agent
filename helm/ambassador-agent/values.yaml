@@ -77,5 +77,3 @@ rbac:
   argo: true
 
 createNamespace: false
-
-apiPort: 8081
