@@ -14,9 +14,11 @@ echo "$TOP_DIR"
 tmpdir=$(mktemp -d)
 
 helm package \
-    --version=$A8R_AGENT_VERSION \
+    --version=${A8R_AGENT_VERSION#v} \
+    --app-version=${A8R_AGENT_VERSION#v} \
     --destination $tmpdir \
     $TOP_DIR/helm/ambassador-agent
+
 package_files=("$tmpdir"/ambassador-agent-*.tgz)
 package_file=${package_files[0]}
 
