@@ -326,19 +326,50 @@ func (a *Agent) Watch(ctx context.Context) error {
 
 	// The following is kates that I'm not sure if we can replicate with k8sapi as it currently exists
 	// leaving it in for now
-	client, err := kates.NewClient(kates.ClientConfig{})
+	//
+	_, resourcesLists, err := k8sapi.GetK8sInterface(ctx).Discovery().ServerGroupsAndResources()
 	if err != nil {
 		return err
 	}
-	ns := kates.NamespaceAll
-	dc := NewDynamicClient(client.DynamicInterface(), NewK8sInformer)
+	hasResource := func(r *schema.GroupVersionResource) bool {
+		for _, rl := range resourcesLists {
+			if r.GroupVersion().String() == rl.GroupVersion {
+				for _, ar := range rl.APIResources {
+					if r.Resource == ar.Name {
+						dlog.Infof(ctx, "Watching %s", r)
+						return true
+					}
+				}
+			}
+		}
+		dlog.Infof(ctx, "Will not watch %s because that resource is not known to this cluster", r)
+		return false
+	}
+
 	rolloutGvr, _ := schema.ParseResourceArg("rollouts.v1alpha1.argoproj.io")
-	rolloutCallback := dc.WatchGeneric(ctx, ns, rolloutGvr)
-
+	hasRollouts := hasResource(rolloutGvr)
 	applicationGvr, _ := schema.ParseResourceArg("applications.v1alpha1.argoproj.io")
-	applicationCallback := dc.WatchGeneric(ctx, ns, applicationGvr)
+	hasApps := hasResource(applicationGvr)
 
-	return a.watch(ctx, configCh, ambCh, rolloutCallback, applicationCallback)
+	var rolloutCallbackCh <-chan *GenericCallback
+	var applicationCallbackCh <-chan *GenericCallback
+	if hasRollouts || hasApps {
+		client, err := kates.NewClient(kates.ClientConfig{})
+		if err != nil {
+			return err
+		}
+		ns := kates.NamespaceAll
+		dc := NewDynamicClient(client.DynamicInterface(), NewK8sInformer)
+		if hasRollouts {
+			dlog.Infof(ctx, "Watching %s", rolloutGvr)
+			rolloutCallbackCh = dc.WatchGeneric(ctx, ns, rolloutGvr)
+		}
+		if hasApps {
+			dlog.Infof(ctx, "Watching %s", applicationGvr)
+			applicationCallbackCh = dc.WatchGeneric(ctx, ns, applicationGvr)
+		}
+	}
+	return a.watch(ctx, configCh, ambCh, rolloutCallbackCh, applicationCallbackCh)
 }
 
 func (a *Agent) waitForAPIKey(ctx context.Context, ch <-chan struct{}) {
