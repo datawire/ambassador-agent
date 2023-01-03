@@ -2,7 +2,10 @@ name: "Publish Ambassador-Agent Helm Chart"
 on:
   push:
     tags:
-      - v*
+      - v[0-9]+.[0-9]+.[0-9]
+      - v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+
+      - v[0-9]+.[0-9]+.[0-9]+-test.[0-9]+
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -10,11 +13,12 @@ jobs:
     - name: Git checkout
       uses: actions/checkout@v3
     - name: Build and Publish
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        BUCKET_DIR: charts
+        A8R_AGENT_VERSION: ${{ github.ref_name }}
       run: |
         pip3 install awscli
-        export A8R_AGENT_VERSION=${GITHUB_REF#refs/*/v}
-        export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-        export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        [ "$A8R_AGENT_VERSION" != "*-*" ] && export BUCKET_DIR=charts
         ./packaging/push_chart.sh
 
