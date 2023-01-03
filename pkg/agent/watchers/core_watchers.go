@@ -58,14 +58,14 @@ func NewCoreWatchers(ctx context.Context, namespaces []string, om ObjectModifier
 	return coreWatchers
 }
 
-func (w *CoreWatchers) loadPods(ctx context.Context, _ []*core.Service) []*core.Pod {
+func (w *CoreWatchers) loadPods(ctx context.Context) []*core.Pod {
 	pods, err := w.podWatchers.List(ctx)
 	if err != nil {
 		dlog.Errorf(ctx, "Unable to find pods: %v", err)
 		return nil
 	}
 
-	fpods := make([]*core.Pod, 0)
+	fpods := make([]*core.Pod, 0, len(pods))
 	for _, pod := range pods {
 		if allowedNamespace(pod.GetNamespace()) && pod.Status.Phase != core.PodSucceeded {
 			if w.om != nil {
@@ -85,7 +85,7 @@ func (w *CoreWatchers) loadCmaps(ctx context.Context) []*core.ConfigMap {
 		return nil
 	}
 
-	fcmaps := make([]*core.ConfigMap, 0)
+	fcmaps := make([]*core.ConfigMap, 0, len(cmaps))
 	for _, cmap := range cmaps {
 		if allowedNamespace(cmap.GetNamespace()) {
 			if w.om != nil {
@@ -105,7 +105,7 @@ func (w *CoreWatchers) loadDeploys(ctx context.Context) []*apps.Deployment {
 		return nil
 	}
 
-	fdeploys := make([]*apps.Deployment, 0)
+	fdeploys := make([]*apps.Deployment, 0, len(deploys))
 	for _, deploy := range deploys {
 		if allowedNamespace(deploy.GetNamespace()) {
 			if w.om != nil {
@@ -125,7 +125,7 @@ func (w *CoreWatchers) loadEndpoints(ctx context.Context) []*core.Endpoints {
 		return nil
 	}
 
-	fendpts := make([]*core.Endpoints, 0)
+	fendpts := make([]*core.Endpoints, 0, len(endpts))
 	for _, endpt := range endpts {
 		if allowedNamespace(endpt.GetNamespace()) {
 			if w.om != nil {
@@ -145,17 +145,18 @@ func allowedNamespace(namespace string) bool {
 }
 
 func (w *CoreWatchers) LoadSnapshot(ctx context.Context, snapshot *snapshotTypes.Snapshot) {
-	snapshot.Kubernetes.Pods = w.loadPods(ctx, snapshot.Kubernetes.Services)
-	dlog.Debugf(ctx, "Found %d pods", len(snapshot.Kubernetes.Pods))
+	k8sSnap := snapshot.Kubernetes
+	k8sSnap.Pods = w.loadPods(ctx)
+	dlog.Debugf(ctx, "Found %d pods", len(k8sSnap.Pods))
 
-	snapshot.Kubernetes.ConfigMaps = w.loadCmaps(ctx)
-	dlog.Debugf(ctx, "Found %d configMaps", len(snapshot.Kubernetes.ConfigMaps))
+	k8sSnap.ConfigMaps = w.loadCmaps(ctx)
+	dlog.Debugf(ctx, "Found %d configMaps", len(k8sSnap.ConfigMaps))
 
-	snapshot.Kubernetes.Deployments = w.loadDeploys(ctx)
-	dlog.Debugf(ctx, "Found %d Deployments", len(snapshot.Kubernetes.Deployments))
+	k8sSnap.Deployments = w.loadDeploys(ctx)
+	dlog.Debugf(ctx, "Found %d Deployments", len(k8sSnap.Deployments))
 
-	snapshot.Kubernetes.Endpoints = w.loadEndpoints(ctx)
-	dlog.Debugf(ctx, "Found %d Endpoints", len(snapshot.Kubernetes.Endpoints))
+	k8sSnap.Endpoints = w.loadEndpoints(ctx)
+	dlog.Debugf(ctx, "Found %d Endpoints", len(k8sSnap.Endpoints))
 }
 
 func (w *CoreWatchers) Subscribe(ctx context.Context) <-chan struct{} {
