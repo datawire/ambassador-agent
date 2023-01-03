@@ -2,9 +2,9 @@ A8R_AGENT_VERSION ?= $(shell unset GOOS GOARCH; go run ./build-aux/genversion)
 # Ensure that the variable is fully expanded. We don't want to call genversion repeatedly
 # as it may produce different results every time.
 A8R_AGENT_VERSION := ${A8R_AGENT_VERSION}
-DEV_REGISTRY ?= datawiredev
+A8R_AGENT_REGISTRY ?= datawiredev
 IMAGE_VERSION = $(patsubst v%,%,$(A8R_AGENT_VERSION))
-IMAGE = ${DEV_REGISTRY}/ambassador-agent:${IMAGE_VERSION}
+IMAGE = ${A8R_AGENT_REGISTRY}/ambassador-agent:${IMAGE_VERSION}
 BUILDDIR=build-output
 
 include build-aux/tools.mk

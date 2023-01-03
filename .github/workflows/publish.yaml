@@ -46,6 +46,6 @@ jobs:
 
     - name: Build and Publish
       env:
-        DEV_REGISTRY: ambassador
+        A8R_AGENT_REGISTRY: ambassador
         A8R_AGENT_VERSION: ${{ github.ref_name }}
       run: make push-image
