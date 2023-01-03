@@ -464,20 +464,23 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			a.newDirective = a.comm.Directives()
 		}
 
+		// Don't report if the Director told us to stop reporting, if we are
+		// already sending a report or waiting for the minimum time between
+		// reports, or if there is nothing new to report right now.
 		if !a.reportingStopped && !a.reportRunning.Load() && a.reportToSend != nil {
 			a.ReportSnapshot(ctx)
 		} else {
 			// Don't report if the Director told us to stop reporting, if we are
 			// already sending a report or waiting for the minimum time between
 			// reports, or if there is nothing new to report right now.
-			dlog.Debugf(ctx, "Not reporting snapshot [reporting stopped = %t] [report running = %t] [report to send is nil = %t]",
+			dlog.Tracef(ctx, "Not reporting snapshot [reporting stopped = %t] [report running = %t] [report to send is nil = %t]",
 				a.reportingStopped, a.reportRunning.Load(), a.reportToSend == nil)
 		}
 
 		// only get diagnostics and metrics from edgissary if it is present
 		// TODO get metrics/diagnostics from traffic manager?
 		if !a.emissaryPresent {
-			dlog.Debugf(ctx, "Edgissary not present, not reporting edgissary diagnostics and metrics")
+			dlog.Tracef(ctx, "Edgissary not present, not reporting edgissary diagnostics and metrics")
 			continue
 		}
 
@@ -487,13 +490,13 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			// Don't report if the Director told us to stop reporting, if we are
 			// already sending a report or waiting for the minimum time between
 			// reports
-			dlog.Debugf(ctx, "Not reporting diagnostics [reporting stopped = %t] [report running = %t]", a.diagnosticsReportingStopped, a.diagnosticsReportRunning.Load())
+			dlog.Tracef(ctx, "Not reporting diagnostics [reporting stopped = %t] [report running = %t]", a.diagnosticsReportingStopped, a.diagnosticsReportRunning.Load())
 		}
 
 		if !a.reportingStopped && !a.metricsReportRunning.Load() {
 			a.ReportMetrics(ctx)
 		} else {
-			dlog.Debugf(ctx, "Not reporting diagnostics [reporting stopped = %t] [report running = %t]", a.reportingStopped, a.metricsReportRunning.Load())
+			dlog.Tracef(ctx, "Not reporting diagnostics [reporting stopped = %t] [report running = %t]", a.reportingStopped, a.metricsReportRunning.Load())
 		}
 	}
 }
