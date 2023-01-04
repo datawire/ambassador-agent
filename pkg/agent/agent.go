@@ -495,9 +495,6 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			a.newDirective = a.comm.Directives()
 		}
 
-		// Don't report if the Director told us to stop reporting, if we are
-		// already sending a report or waiting for the minimum time between
-		// reports, or if there is nothing new to report right now.
 		if !a.reportingStopped && !a.reportRunning.Load() && a.reportToSend != nil {
 			a.ReportSnapshot(ctx)
 		} else {
