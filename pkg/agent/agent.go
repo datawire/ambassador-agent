@@ -20,6 +20,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -78,6 +79,7 @@ type Agent struct {
 	// apiDocsStore holds OpenAPI documents from cluster Mappings
 	apiDocsStore *APIDocsStore
 
+	argoLock sync.Mutex
 	// rolloutStore holds Argo Rollouts state from cluster
 	rolloutStore *RolloutStore
 	// applicationStore holds Argo Applications state from cluster
@@ -324,52 +326,141 @@ func (a *Agent) Watch(ctx context.Context) error {
 	a.handleAmbassadorEndpointChange(ctx, a.AESSnapshotURL.Hostname())
 	ambCh := k8sapi.Subscribe(ctx, a.ambassadorWatcher.cond)
 
-	// The following is kates that I'm not sure if we can replicate with k8sapi as it currently exists
-	// leaving it in for now
-	//
-	_, resourcesLists, err := k8sapi.GetK8sInterface(ctx).Discovery().ServerGroupsAndResources()
-	if err != nil {
+	if err := a.argoWatch(ctx); err != nil {
 		return err
 	}
-	hasResource := func(r *schema.GroupVersionResource) bool {
-		for _, rl := range resourcesLists {
-			if r.GroupVersion().String() == rl.GroupVersion {
-				for _, ar := range rl.APIResources {
-					if r.Resource == ar.Name {
-						dlog.Infof(ctx, "Watching %s", r)
-						return true
-					}
+	return a.watch(ctx, configCh, ambCh)
+}
+
+func hasResource(ctx context.Context, resourceLists []*metav1.APIResourceList, r *schema.GroupVersionResource) bool {
+	for _, rl := range resourceLists {
+		if r.GroupVersion().String() == rl.GroupVersion {
+			for _, ar := range rl.APIResources {
+				if r.Resource == ar.Name {
+					dlog.Infof(ctx, "Watching %s", r)
+					return true
 				}
 			}
 		}
-		dlog.Infof(ctx, "Will not watch %s because that resource is not known to this cluster", r)
-		return false
 	}
+	dlog.Infof(ctx, "Will not watch %s because that resource is not known to this cluster", r)
+	return false
+}
 
-	rolloutGvr, _ := schema.ParseResourceArg("rollouts.v1alpha1.argoproj.io")
-	hasRollouts := hasResource(rolloutGvr)
-	applicationGvr, _ := schema.ParseResourceArg("applications.v1alpha1.argoproj.io")
-	hasApps := hasResource(applicationGvr)
+func (a *Agent) argoWatch(ctx context.Context) error {
+	client, err := kates.NewClient(kates.ClientConfig{})
+	if err != nil {
+		return err
+	}
+	ns := kates.NamespaceAll
+	dc := NewDynamicClient(client.DynamicInterface(), NewK8sInformer)
 
-	var rolloutCallbackCh <-chan *GenericCallback
-	var applicationCallbackCh <-chan *GenericCallback
-	if hasRollouts || hasApps {
-		client, err := kates.NewClient(kates.ClientConfig{})
+	var cancelRolloutWatch, cancelApplicationWatch context.CancelFunc
+	defer func() {
+		if cancelRolloutWatch != nil {
+			cancelRolloutWatch()
+		}
+		if cancelApplicationWatch != nil {
+			cancelApplicationWatch()
+		}
+	}()
+
+	for {
+		_, resourcesLists, err := k8sapi.GetK8sInterface(ctx).Discovery().ServerGroupsAndResources()
 		if err != nil {
 			return err
 		}
-		ns := kates.NamespaceAll
-		dc := NewDynamicClient(client.DynamicInterface(), NewK8sInformer)
-		if hasRollouts {
-			dlog.Infof(ctx, "Watching %s", rolloutGvr)
-			rolloutCallbackCh = dc.WatchGeneric(ctx, ns, rolloutGvr)
+
+		// Using a func() here to prevent lint from complaining about a non-existent context leak.
+		rolloutGvr, _ := schema.ParseResourceArg("rollouts.v1alpha1.argoproj.io")
+		if hasResource(ctx, resourcesLists, rolloutGvr) {
+			if cancelRolloutWatch == nil {
+				var cctx context.Context
+				cctx, cancelRolloutWatch = context.WithCancel(ctx)
+				go a.argoRolloutWatch(cctx, dc, ns, rolloutGvr)
+			}
+		} else {
+			if cancelRolloutWatch != nil {
+				cancelRolloutWatch()
+				cancelRolloutWatch = nil
+			}
 		}
-		if hasApps {
-			dlog.Infof(ctx, "Watching %s", applicationGvr)
-			applicationCallbackCh = dc.WatchGeneric(ctx, ns, applicationGvr)
+
+		applicationGvr, _ := schema.ParseResourceArg("applications.v1alpha1.argoproj.io")
+		if hasResource(ctx, resourcesLists, applicationGvr) {
+			if cancelApplicationWatch == nil {
+				var cctx context.Context
+				cctx, cancelApplicationWatch = context.WithCancel(ctx)
+				go a.argoApplicationWatch(cctx, dc, ns, applicationGvr)
+			}
+		} else {
+			if cancelApplicationWatch != nil {
+				cancelApplicationWatch()
+				cancelApplicationWatch = nil
+			}
+		}
+
+		// recheck conditions periodically
+		recheckDuration := time.Minute
+		if cancelRolloutWatch != nil && cancelApplicationWatch != nil {
+			// Both resources exist. The recheck becomes a matter of discovering if
+			// something is removed. That can be done more seldom.
+			recheckDuration *= 30
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(recheckDuration):
 		}
 	}
-	return a.watch(ctx, configCh, ambCh, rolloutCallbackCh, applicationCallbackCh)
+}
+
+func (a *Agent) argoRolloutWatch(ctx context.Context, dc *DynamicClient, ns string, rolloutGvr *schema.GroupVersionResource) {
+	dlog.Infof(ctx, "Watching %s", rolloutGvr)
+	rolloutCallbackCh := dc.WatchGeneric(ctx, ns, rolloutGvr)
+	rolloutStore := NewRolloutStore()
+	for {
+		// Wait for an event
+		select {
+		case <-ctx.Done():
+			return
+		case callback, ok := <-rolloutCallbackCh:
+			if ok {
+				dlog.Debugf(ctx, "argo rollout callback: %v", callback.EventType)
+				store, err := rolloutStore.FromCallback(callback)
+				if err != nil {
+					dlog.Warnf(ctx, "Error processing rollout callback: %s", err)
+				}
+				a.argoLock.Lock()
+				a.rolloutStore = store
+				a.argoLock.Unlock()
+			}
+		}
+	}
+}
+
+func (a *Agent) argoApplicationWatch(ctx context.Context, dc *DynamicClient, ns string, applicationGvr *schema.GroupVersionResource) {
+	dlog.Infof(ctx, "Watching %s", applicationGvr)
+	applicationCallbackCh := dc.WatchGeneric(ctx, ns, applicationGvr)
+	applicationStore := NewApplicationStore()
+	for {
+		// Wait for an event
+		select {
+		case <-ctx.Done():
+			return
+		case callback, ok := <-applicationCallbackCh:
+			if ok {
+				dlog.Debugf(ctx, "argo application callback: %v", callback.EventType)
+				store, err := applicationStore.FromCallback(callback)
+				if err != nil {
+					dlog.Warnf(ctx, "Error processing application callback: %s", err)
+				}
+				a.argoLock.Lock()
+				a.applicationStore = store
+				a.argoLock.Unlock()
+			}
+		}
+	}
 }
 
 func (a *Agent) waitForAPIKey(ctx context.Context, ch <-chan struct{}) {
@@ -394,12 +485,9 @@ func (a *Agent) waitForAPIKey(ctx context.Context, ch <-chan struct{}) {
 func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 	ctx context.Context,
 	configCh, ambCh <-chan struct{},
-	rolloutCallback, applicationCallback <-chan *GenericCallback,
 ) error {
 	var err error
 	a.apiDocsStore = NewAPIDocsStore()
-	applicationStore := NewApplicationStore()
-	rolloutStore := NewRolloutStore()
 
 	dlog.Info(ctx, "Beginning to watch and report resources to ambassador cloud")
 	for {
@@ -417,22 +505,6 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			a.handleAPIKeyConfigChange(ctx)
 		case <-ambCh:
 			a.handleAmbassadorEndpointChange(ctx, a.AESSnapshotURL.Hostname())
-		case callback, ok := <-rolloutCallback:
-			if ok {
-				dlog.Debugf(ctx, "argo rollout callback: %v", callback.EventType)
-				a.rolloutStore, err = rolloutStore.FromCallback(callback)
-				if err != nil {
-					dlog.Warnf(ctx, "Error processing rollout callback: %s", err)
-				}
-			}
-		case callback, ok := <-applicationCallback:
-			if ok {
-				dlog.Debugf(ctx, "argo application callback: %v", callback.EventType)
-				a.applicationStore, err = applicationStore.FromCallback(callback)
-				if err != nil {
-					dlog.Warnf(ctx, "Error processing application callback: %s", err)
-				}
-			}
 		case directive := <-a.newDirective:
 			a.directiveHandler.HandleDirective(ctx, a, directive)
 		}
@@ -689,6 +761,7 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 		if a.coreWatchers != nil {
 			a.coreWatchers.LoadSnapshot(ctx, snapshot)
 		}
+		a.argoLock.Lock()
 		if a.rolloutStore != nil {
 			snapshot.Kubernetes.ArgoRollouts = a.rolloutStore.StateOfWorld()
 			dlog.Debugf(ctx, "Found %d argo rollouts", len(snapshot.Kubernetes.ArgoRollouts))
@@ -697,6 +770,7 @@ func (a *Agent) ProcessSnapshot(ctx context.Context, snapshot *snapshotTypes.Sna
 			snapshot.Kubernetes.ArgoApplications = a.applicationStore.StateOfWorld()
 			dlog.Debugf(ctx, "Found %d argo applications", len(snapshot.Kubernetes.ArgoApplications))
 		}
+		a.argoLock.Unlock()
 		if a.apiDocsStore != nil {
 			a.apiDocsStore.ProcessSnapshot(ctx, snapshot)
 			snapshot.APIDocs = a.apiDocsStore.StateOfWorld()

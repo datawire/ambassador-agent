@@ -514,11 +514,8 @@ func TestWatchReportPeriodDirective(t *testing.T) {
 	expectedDuration, err := time.ParseDuration("50s10ns")
 	assert.Nil(t, err)
 
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
-
 	go func() {
-		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 	dur := durationpb.Duration{
@@ -574,10 +571,8 @@ func TestWatchEmptyDirectives(t *testing.T) {
 	directiveChan := make(chan *agent.Directive)
 	a.newDirective = directiveChan
 
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
 	go func() {
-		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 
@@ -654,12 +649,9 @@ func TestWatchStopReportingDirective(t *testing.T) {
 	a.comm = c
 	a.ConnAddress = &ConnInfo{hostname: "localhost", port: "8080", secure: false}
 
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
-
 	// start watch
 	go func() {
-		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 
@@ -757,12 +749,10 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 	a.comm = c
 
 	watchDone := make(chan error)
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
 
 	// start the watch
 	go func() {
-		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 
@@ -973,12 +963,10 @@ func TestWatchWithSnapshot(t *testing.T) {
 			},
 		},
 	}
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
 
 	// start the watch
 	go func() {
-		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 
@@ -1121,10 +1109,8 @@ func TestWatchEmptySnapshot(t *testing.T) {
 	}))
 	defer ts.Close()
 	a.AESSnapshotURL = parseURL(t, ts.URL)
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
 	go func() {
-		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 	select {

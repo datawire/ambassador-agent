@@ -98,7 +98,7 @@ image:
 	docker build --build-arg A8R_AGENT_VERSION=$(A8R_AGENT_VERSION) --tag $(IMAGE) .
 
 .PHONY: push-ximage
-push-image: image
+push-ximage: image
 	if docker pull $(IMAGE); then \
 	  print "Failure: Tag already exists"; \
 	  exit 1; \
