@@ -15,12 +15,14 @@ import (
 )
 
 type informerMock struct {
+	cache.SharedIndexInformer
 	eventHandler cache.ResourceEventHandler
 	run          func(handler cache.ResourceEventHandler)
 }
 
-func (i *informerMock) AddEventHandler(handler cache.ResourceEventHandler) {
+func (i *informerMock) AddEventHandler(handler cache.ResourceEventHandler) (cache.ResourceEventHandlerRegistration, error) {
 	i.eventHandler = handler
+	return nil, nil
 }
 
 func (i *informerMock) Run(stopCh <-chan struct{}) {

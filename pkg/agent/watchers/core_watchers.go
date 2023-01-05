@@ -4,64 +4,70 @@ import (
 	"context"
 	"sync"
 
+	apps "k8s.io/api/apps/v1"
+	core "k8s.io/api/core/v1"
+
 	"github.com/datawire/dlib/dlog"
 	"github.com/datawire/k8sapi/pkg/k8sapi"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates"
-
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
-
 	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 )
 
 type CoreWatchers struct {
 	cond             *sync.Cond
-	cmapsWatchers    k8sapi.WatcherGroup[*kates.ConfigMap]
-	deployWatchers   k8sapi.WatcherGroup[*kates.Deployment]
-	podWatchers      k8sapi.WatcherGroup[*kates.Pod]
-	endpointWatchers k8sapi.WatcherGroup[*kates.Endpoints]
+	cmapsWatchers    k8sapi.WatcherGroup[*core.ConfigMap]
+	deployWatchers   k8sapi.WatcherGroup[*apps.Deployment]
+	podWatchers      k8sapi.WatcherGroup[*core.Pod]
+	endpointWatchers k8sapi.WatcherGroup[*core.Endpoints]
 
 	om ObjectModifier
 }
 
-func NewCoreWatchers(clientset *kubernetes.Clientset, namespaces []string, om ObjectModifier) *CoreWatchers {
-	appClient := clientset.AppsV1().RESTClient()
-	coreClient := clientset.CoreV1().RESTClient()
+func NewCoreWatchers(ctx context.Context, namespaces []string, om ObjectModifier) *CoreWatchers {
+	k8sif := k8sapi.GetK8sInterface(ctx)
+	appClient := k8sif.AppsV1().RESTClient()
+	coreClient := k8sif.CoreV1().RESTClient()
 
 	cond := &sync.Cond{
 		L: &sync.Mutex{},
 	}
 
 	coreWatchers := &CoreWatchers{
-		cmapsWatchers:    k8sapi.NewWatcherGroup[*kates.ConfigMap](),
-		deployWatchers:   k8sapi.NewWatcherGroup[*kates.Deployment](),
-		podWatchers:      k8sapi.NewWatcherGroup[*kates.Pod](),
-		endpointWatchers: k8sapi.NewWatcherGroup[*kates.Endpoints](),
+		cmapsWatchers:    k8sapi.NewWatcherGroup[*core.ConfigMap](),
+		deployWatchers:   k8sapi.NewWatcherGroup[*apps.Deployment](),
+		podWatchers:      k8sapi.NewWatcherGroup[*core.Pod](),
+		endpointWatchers: k8sapi.NewWatcherGroup[*core.Endpoints](),
 		cond:             cond,
 		om:               om,
 	}
 
 	// TODO equals func to prevent over-broadcasting
-	for _, ns := range namespaces {
-		_ = coreWatchers.cmapsWatchers.AddWatcher(k8sapi.NewWatcher("configmaps", ns, coreClient, &kates.ConfigMap{}, cond, nil))
-		_ = coreWatchers.deployWatchers.AddWatcher(k8sapi.NewWatcher("deployments", ns, appClient, &kates.Deployment{}, cond, nil))
-		_ = coreWatchers.podWatchers.AddWatcher(k8sapi.NewWatcher("pods", ns, coreClient, &kates.Pod{}, cond, nil))
-		_ = coreWatchers.endpointWatchers.AddWatcher(k8sapi.NewWatcher("endpoints", ns, coreClient, &kates.Endpoints{}, cond, nil))
+	if len(namespaces) > 0 {
+		for _, ns := range namespaces {
+			_ = coreWatchers.cmapsWatchers.AddWatcher(k8sapi.NewWatcher[*core.ConfigMap]("configmaps", coreClient, cond, k8sapi.WithNamespace[*core.ConfigMap](ns)))
+			_ = coreWatchers.deployWatchers.AddWatcher(k8sapi.NewWatcher[*apps.Deployment]("deployments", appClient, cond, k8sapi.WithNamespace[*apps.Deployment](ns)))
+			_ = coreWatchers.podWatchers.AddWatcher(k8sapi.NewWatcher[*core.Pod]("pods", coreClient, cond, k8sapi.WithNamespace[*core.Pod](ns)))
+			_ = coreWatchers.endpointWatchers.AddWatcher(k8sapi.NewWatcher[*core.Endpoints]("endpoints", coreClient, cond, k8sapi.WithNamespace[*core.Endpoints](ns)))
+		}
+	} else {
+		_ = coreWatchers.cmapsWatchers.AddWatcher(k8sapi.NewWatcher[*core.ConfigMap]("configmaps", coreClient, cond))
+		_ = coreWatchers.deployWatchers.AddWatcher(k8sapi.NewWatcher[*apps.Deployment]("deployments", appClient, cond))
+		_ = coreWatchers.podWatchers.AddWatcher(k8sapi.NewWatcher[*core.Pod]("pods", coreClient, cond))
+		_ = coreWatchers.endpointWatchers.AddWatcher(k8sapi.NewWatcher[*core.Endpoints]("endpoints", coreClient, cond))
 	}
 
 	return coreWatchers
 }
 
-func (w *CoreWatchers) loadPods(ctx context.Context, _ []*kates.Service) []*kates.Pod {
+func (w *CoreWatchers) loadPods(ctx context.Context) []*core.Pod {
 	pods, err := w.podWatchers.List(ctx)
 	if err != nil {
 		dlog.Errorf(ctx, "Unable to find pods: %v", err)
 		return nil
 	}
 
-	fpods := make([]*kates.Pod, 0)
+	fpods := make([]*core.Pod, 0, len(pods))
 	for _, pod := range pods {
-		if allowedNamespace(pod.GetNamespace()) && pod.Status.Phase != v1.PodSucceeded {
+		if allowedNamespace(pod.GetNamespace()) && pod.Status.Phase != core.PodSucceeded {
 			if w.om != nil {
 				w.om(pod)
 			}
@@ -72,14 +78,14 @@ func (w *CoreWatchers) loadPods(ctx context.Context, _ []*kates.Service) []*kate
 	return fpods
 }
 
-func (w *CoreWatchers) loadCmaps(ctx context.Context) []*kates.ConfigMap {
+func (w *CoreWatchers) loadCmaps(ctx context.Context) []*core.ConfigMap {
 	cmaps, err := w.cmapsWatchers.List(ctx)
 	if err != nil {
 		dlog.Errorf(ctx, "Unable to find configmaps: %v", err)
 		return nil
 	}
 
-	fcmaps := make([]*kates.ConfigMap, 0)
+	fcmaps := make([]*core.ConfigMap, 0, len(cmaps))
 	for _, cmap := range cmaps {
 		if allowedNamespace(cmap.GetNamespace()) {
 			if w.om != nil {
@@ -92,14 +98,14 @@ func (w *CoreWatchers) loadCmaps(ctx context.Context) []*kates.ConfigMap {
 	return fcmaps
 }
 
-func (w *CoreWatchers) loadDeploys(ctx context.Context) []*kates.Deployment {
+func (w *CoreWatchers) loadDeploys(ctx context.Context) []*apps.Deployment {
 	deploys, err := w.deployWatchers.List(ctx)
 	if err != nil {
 		dlog.Errorf(ctx, "Unable to find deployments: %v", err)
 		return nil
 	}
 
-	fdeploys := make([]*kates.Deployment, 0)
+	fdeploys := make([]*apps.Deployment, 0, len(deploys))
 	for _, deploy := range deploys {
 		if allowedNamespace(deploy.GetNamespace()) {
 			if w.om != nil {
@@ -112,14 +118,14 @@ func (w *CoreWatchers) loadDeploys(ctx context.Context) []*kates.Deployment {
 	return fdeploys
 }
 
-func (w *CoreWatchers) loadEndpoints(ctx context.Context) []*kates.Endpoints {
+func (w *CoreWatchers) loadEndpoints(ctx context.Context) []*core.Endpoints {
 	endpts, err := w.endpointWatchers.List(ctx)
 	if err != nil {
 		dlog.Errorf(ctx, "Unable to find endpoints: %v", err)
 		return nil
 	}
 
-	fendpts := make([]*kates.Endpoints, 0)
+	fendpts := make([]*core.Endpoints, 0, len(endpts))
 	for _, endpt := range endpts {
 		if allowedNamespace(endpt.GetNamespace()) {
 			if w.om != nil {
@@ -139,17 +145,18 @@ func allowedNamespace(namespace string) bool {
 }
 
 func (w *CoreWatchers) LoadSnapshot(ctx context.Context, snapshot *snapshotTypes.Snapshot) {
-	snapshot.Kubernetes.Pods = w.loadPods(ctx, snapshot.Kubernetes.Services)
-	dlog.Debugf(ctx, "Found %d pods", len(snapshot.Kubernetes.Pods))
+	k8sSnap := snapshot.Kubernetes
+	k8sSnap.Pods = w.loadPods(ctx)
+	dlog.Debugf(ctx, "Found %d pods", len(k8sSnap.Pods))
 
-	snapshot.Kubernetes.ConfigMaps = w.loadCmaps(ctx)
-	dlog.Debugf(ctx, "Found %d configMaps", len(snapshot.Kubernetes.ConfigMaps))
+	k8sSnap.ConfigMaps = w.loadCmaps(ctx)
+	dlog.Debugf(ctx, "Found %d configMaps", len(k8sSnap.ConfigMaps))
 
-	snapshot.Kubernetes.Deployments = w.loadDeploys(ctx)
-	dlog.Debugf(ctx, "Found %d Deployments", len(snapshot.Kubernetes.Deployments))
+	k8sSnap.Deployments = w.loadDeploys(ctx)
+	dlog.Debugf(ctx, "Found %d Deployments", len(k8sSnap.Deployments))
 
-	snapshot.Kubernetes.Endpoints = w.loadEndpoints(ctx)
-	dlog.Debugf(ctx, "Found %d Endpoints", len(snapshot.Kubernetes.Endpoints))
+	k8sSnap.Endpoints = w.loadEndpoints(ctx)
+	dlog.Debugf(ctx, "Found %d Endpoints", len(k8sSnap.Endpoints))
 }
 
 func (w *CoreWatchers) Subscribe(ctx context.Context) <-chan struct{} {

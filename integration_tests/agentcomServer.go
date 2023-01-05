@@ -3,6 +3,7 @@ package itest
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -79,22 +80,6 @@ func (ac *AgentCom) RPCAddress() string {
 }
 
 func (ac *AgentCom) Install(ctx context.Context) (CleanupFunc, error) {
-	_, err := ac.clientset.CoreV1().Namespaces().Get(ctx, ac.namespace, v1.GetOptions{})
-	if err != nil {
-		if !strings.Contains(err.Error(), "not found") {
-			return nil, err
-		}
-
-		_, err = ac.clientset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-			ObjectMeta: v1.ObjectMeta{
-				Name: ac.namespace,
-			},
-		}, v1.CreateOptions{})
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	svc := corev1.Service{
 		ObjectMeta: v1.ObjectMeta{
 			Name: ac.name,
@@ -157,7 +142,7 @@ func (ac *AgentCom) Install(ctx context.Context) (CleanupFunc, error) {
 	}
 
 	client := ac.clientset.CoreV1()
-	_, err = client.Services(ac.namespace).Create(ctx, &svc, v1.CreateOptions{})
+	_, err := client.Services(ac.namespace).Create(ctx, &svc, v1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -186,10 +171,13 @@ func (ac *AgentCom) GetSnapshot(ctx context.Context) (*agent.Snapshot, error) {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			outBytes, _, err := PodExec(ac.restConfig, ac.namespace, ac.name,
+			outBytes, errBytes, err := PodExec(ac.restConfig, ac.namespace, ac.name,
 				"cat", "/tmp/snapshot.json",
 			)
 			if err != nil {
+				if len(errBytes) > 0 {
+					return nil, fmt.Errorf("%T: %s", err, string(errBytes))
+				}
 				if !strings.Contains(err.Error(), "exit code 1") {
 					return nil, err
 				}

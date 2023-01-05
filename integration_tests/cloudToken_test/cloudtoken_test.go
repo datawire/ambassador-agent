@@ -14,39 +14,31 @@ import (
 func (s *CloudTokenTestSuite) TestCloudToken() {
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      s.name + "-cloud-token",
-			Namespace: s.namespace,
+			Name:      s.Name() + "-cloud-token",
+			Namespace: s.Namespace(),
 		},
 		Data: map[string][]byte{
 			"CLOUD_CONNECT_TOKEN": []byte("TEST_TOKEN"),
 		},
 	}
-	_, err := s.clientset.CoreV1().Secrets(s.namespace).
-		Create(s.ctx, &secret, metav1.CreateOptions{})
+	ctx := s.Context()
+	scAPI := s.K8sIf().CoreV1().Secrets(s.Namespace())
+	_, err := scAPI.Create(ctx, &secret, metav1.CreateOptions{})
 	s.Require().NoError(err)
-
-	defer func() {
-		_ = s.clientset.CoreV1().Secrets(s.namespace).Delete(s.ctx, secret.ObjectMeta.Name, metav1.DeleteOptions{})
-	}()
-
-	time.Sleep(15 * time.Second)
-
-	pods, err := s.clientset.CoreV1().Pods(s.namespace).List(s.ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/name=ambassador-agent",
+	s.Cleanup(func(ctx context.Context) error {
+		return scAPI.Delete(ctx, secret.ObjectMeta.Name, metav1.DeleteOptions{})
 	})
-	s.Require().NoError(err)
-	s.Require().NotEmpty(pods.Items)
-	agentPod := pods.Items[0]
 
-	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 
-	logLines, err := itest.NewPodLogChan(ctx, s.clientset, agentPod.Name, s.namespace, true)
+	logLines, err := itest.NewPodLogChan(ctx, s.K8sIf(), itest.AgentLabelSelector, s.Namespace(), true)
 	s.Require().NoError(err)
 
 	var succ bool
 	for line := range logLines {
 		if succ = strings.Contains(line, "Setting cloud connect token from secret"); succ {
+			cancel()
 			break
 		}
 	}

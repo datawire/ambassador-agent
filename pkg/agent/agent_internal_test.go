@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -25,9 +26,7 @@ import (
 	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 )
 
-const (
-	diagnosticsURL = "http://localhost:8877/ambassador/v0/diag/?json=true"
-)
+var diagnosticsURL, _ = url.Parse("http://localhost:8877/ambassador/v0/diag/?json=true")
 
 // Take a json formatted string and transform it to kates.Unstructured
 // for easy formatting of Snapshot.Invalid members.
@@ -65,10 +64,10 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 		{
 			testName: "configmap-wins",
 			agent: &Agent{
-				agentNamespace:               "coolnamespace",
-				agentCloudResourceConfigName: "coolname",
-				ambassadorAPIKey:             "",
-				ambassadorAPIKeyEnvVarValue:  "",
+				Env: &Env{
+					AgentNamespace:          "coolnamespace",
+					AgentConfigResourceName: "coolname",
+				},
 			},
 			secrets: []*kates.Secret{},
 			configMaps: []*kates.ConfigMap{
@@ -84,10 +83,10 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 		{
 			testName: "secret-over-configmap",
 			agent: &Agent{
-				agentNamespace:               "coolnamespace",
-				agentCloudResourceConfigName: "coolname",
-				ambassadorAPIKey:             "",
-				ambassadorAPIKeyEnvVarValue:  "",
+				Env: &Env{
+					AgentNamespace:          "coolnamespace",
+					AgentConfigResourceName: "coolname",
+				},
 			},
 			secrets: []*kates.Secret{
 				{
@@ -110,10 +109,10 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 		{
 			testName: "from-secret",
 			agent: &Agent{
-				agentNamespace:               "coolnamespace",
-				agentCloudResourceConfigName: "coolname",
-				ambassadorAPIKey:             "",
-				ambassadorAPIKeyEnvVarValue:  "",
+				Env: &Env{
+					AgentNamespace:          "coolnamespace",
+					AgentConfigResourceName: "coolname",
+				},
 			},
 			secrets: []*kates.Secret{
 				{
@@ -129,10 +128,11 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 		{
 			testName: "configmap-empty-string-value",
 			agent: &Agent{
-				agentNamespace:               "coolnamespace",
-				agentCloudResourceConfigName: "coolname",
-				ambassadorAPIKey:             "someexistingvalue",
-				ambassadorAPIKeyEnvVarValue:  "",
+				Env: &Env{
+					AgentNamespace:          "coolnamespace",
+					AgentConfigResourceName: "coolname",
+					AmbassadorAPIKey:        "someexistingvalue",
+				},
 			},
 			secrets: []*kates.Secret{},
 			configMaps: []*kates.ConfigMap{
@@ -146,10 +146,11 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 		{
 			testName: "secret-empty-string-value",
 			agent: &Agent{
-				agentNamespace:               "coolnamespace",
-				agentCloudResourceConfigName: "coolname",
-				ambassadorAPIKey:             "someexistingvalue",
-				ambassadorAPIKeyEnvVarValue:  "",
+				Env: &Env{
+					AgentNamespace:          "coolnamespace",
+					AgentConfigResourceName: "coolname",
+					AmbassadorAPIKey:        "someexistingvalue",
+				},
 			},
 			secrets: []*kates.Secret{
 				{
@@ -163,20 +164,24 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 		{
 			testName: "fall-back-envvar",
 			agent: &Agent{
-				agentNamespace:               "coolnamespace",
-				agentCloudResourceConfigName: "coolname",
-				ambassadorAPIKey:             "somevaluefromsomewhereelse",
-				ambassadorAPIKeyEnvVarValue:  "gotfromenv",
+				Env: &Env{
+					AgentNamespace:          "coolnamespace",
+					AgentConfigResourceName: "coolname",
+					AmbassadorAPIKey:        "somevaluefromsomewhereelse",
+				},
+				ambassadorAPIKeyEnvVarValue: "gotfromenv",
 			},
 			expectedAPIKey: "gotfromenv",
 		},
 		{
 			testName: "fall-back-envvar-bad-configs",
 			agent: &Agent{
-				agentNamespace:               "notcoolnamespace",
-				agentCloudResourceConfigName: "notcoolname",
-				ambassadorAPIKey:             "somevaluefromsomewhereelse",
-				ambassadorAPIKeyEnvVarValue:  "gotfromenv",
+				Env: &Env{
+					AgentNamespace:          "notcoolnamespace",
+					AgentConfigResourceName: "notcoolname",
+					AmbassadorAPIKey:        "somevaluefromsomewhereelse",
+				},
+				ambassadorAPIKeyEnvVarValue: "gotfromenv",
 			},
 			secrets: []*kates.Secret{
 				{
@@ -203,9 +208,32 @@ func TestHandleAPIKeyConfigChange(t *testing.T) {
 
 			tc.agent.setAPIKeyConfigFrom(ctx, tc.secrets, tc.configMaps)
 
-			assert.Equal(t, tc.agent.ambassadorAPIKey, tc.expectedAPIKey)
+			assert.Equal(t, tc.agent.AmbassadorAPIKey, tc.expectedAPIKey)
 		})
 	}
+}
+
+type testEnv map[string]string
+
+func newTestEnv(pairs ...string) testEnv {
+	em := testEnv{
+		"CLOUD_CONNECT_TOKEN": "secretvalue",
+		"AES_SNAPSHOT_URL":    "http://ambassador-host:12345/snapshot-external",
+		"AES_DIAGNOSTIC_URL":  "http://ambassador-host:54321/ambassador/v0/diag/?json=true",
+		"SERVER_PORT":         "8081",
+	}
+	pl := len(pairs) - 1
+	for i := 0; i < pl; i += 2 {
+		if v := pairs[i+1]; v != "" {
+			em[pairs[i]] = v
+		}
+	}
+	return em
+}
+
+func (te testEnv) lookup(key string) (string, bool) {
+	v, ok := te[key]
+	return v, ok
 }
 
 func TestProcessSnapshot(t *testing.T) {
@@ -304,12 +332,13 @@ func TestProcessSnapshot(t *testing.T) {
 
 	for _, testcase := range snapshotTests {
 		t.Run(testcase.testName, func(t *testing.T) {
-			a := &Agent{}
+			te := newTestEnv("RPC_CONNECTION_ADDRESS", testcase.address, "AMBASSADOR_HOST")
+			env, err := LoadEnv(te.lookup)
+			require.NoError(t, err)
+
+			a := &Agent{Env: env}
 			ctx := dlog.NewTestContext(t, false)
-			a.connAddress = testcase.address
-			// Parsing the comm address was moved to the watch function.
-			assert.NoError(t, a.parseCommAddr())
-			actualRet := a.ProcessSnapshot(ctx, testcase.inputSnap, "ambassador-host")
+			actualRet := a.ProcessSnapshot(ctx, testcase.inputSnap)
 
 			assert.Equal(t, testcase.ret, actualRet)
 			if testcase.res == nil {
@@ -322,7 +351,7 @@ func TestProcessSnapshot(t *testing.T) {
 				assert.Equal(t, testcase.res.ApiVersion, a.reportToSend.ApiVersion)
 			}
 			if testcase.expectedConnInfo != nil {
-				assert.Equal(t, testcase.expectedConnInfo, a.connInfo)
+				assert.Equal(t, testcase.expectedConnInfo, a.ConnAddress)
 			}
 			if testcase.assertionFunc != nil {
 				testcase.assertionFunc(t, a.reportToSend)
@@ -423,12 +452,12 @@ func TestProcessDiagnosticsSnapshot(t *testing.T) {
 
 	for _, testcase := range diagnosticsTests {
 		t.Run(testcase.testName, func(t *testing.T) {
-			a := &Agent{}
+			te := newTestEnv("RPC_CONNECTION_ADDRESS", testcase.address)
+			env, err := LoadEnv(te.lookup)
+			require.NoError(t, err)
+			a := &Agent{Env: env}
 			ctx := dlog.NewTestContext(t, false)
-			a.connAddress = testcase.address
-			// Parsing the comm address was moved to the watch function.
-			assert.NoError(t, a.parseCommAddr())
-			agentDiagnostics, actualRet := a.ProcessDiagnostics(ctx, testcase.inputDiagnostics, "ambassador-host")
+			agentDiagnostics, actualRet := a.ProcessDiagnostics(ctx, testcase.inputDiagnostics)
 
 			assert.Equal(t, testcase.ret, actualRet)
 			if testcase.res == nil {
@@ -440,13 +469,19 @@ func TestProcessDiagnosticsSnapshot(t *testing.T) {
 				assert.Equal(t, testcase.res.ApiVersion, agentDiagnostics.ApiVersion)
 			}
 			if testcase.expectedConnInfo != nil {
-				assert.Equal(t, testcase.expectedConnInfo, a.connInfo)
+				assert.Equal(t, testcase.expectedConnInfo, a.ConnAddress)
 			}
 			if testcase.assertionFunc != nil {
 				testcase.assertionFunc(t, agentDiagnostics)
 			}
 		})
 	}
+}
+
+func parseURL(t *testing.T, urlStr string) *url.URL {
+	u, err := url.Parse(urlStr)
+	require.NoError(t, err)
+	return u
 }
 
 // Set up a watch and send a MinReportPeriod directive to the directive channel
@@ -456,6 +491,10 @@ func TestWatchReportPeriodDirective(t *testing.T) {
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 
 	a := &Agent{
+		Env: &Env{
+			AESSnapshotURL:    parseURL(t, "http://localhost:9697"),
+			AESDiagnosticsURL: diagnosticsURL,
+		},
 		directiveHandler: &BasicDirectiveHandler{
 			DefaultMinReportPeriod: defaultMinReportPeriod,
 			rolloutsGetterFactory:  nil,
@@ -470,16 +509,13 @@ func TestWatchReportPeriodDirective(t *testing.T) {
 	cfgDuration, err := time.ParseDuration("1ms")
 	assert.Nil(t, err)
 	// initial report period is 1 second
-	a.minReportPeriod = cfgDuration
+	a.MinReportPeriod = cfgDuration
 	// we expect it to be set to 5 seconds
 	expectedDuration, err := time.ParseDuration("50s10ns")
 	assert.Nil(t, err)
 
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
-
 	go func() {
-		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 	dur := durationpb.Duration{
@@ -507,8 +543,8 @@ func TestWatchReportPeriodDirective(t *testing.T) {
 		t.Fatal("Timed out waiting for watch to finish after cancelling context")
 	}
 	// make sure that the agent's min report period is what we expect
-	assert.Equal(t, expectedDuration, a.minReportPeriod)
-	assert.False(t, a.reportRunning.Value())
+	assert.Equal(t, expectedDuration, a.MinReportPeriod)
+	assert.False(t, a.reportRunning.Load())
 }
 
 // Start a watch and send a nil then empty directive through the channel
@@ -518,6 +554,10 @@ func TestWatchEmptyDirectives(t *testing.T) {
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 
 	a := &Agent{
+		Env: &Env{
+			AESSnapshotURL:    parseURL(t, "http://localhost:9697"),
+			AESDiagnosticsURL: diagnosticsURL,
+		},
 		directiveHandler: &BasicDirectiveHandler{
 			DefaultMinReportPeriod: defaultMinReportPeriod,
 			rolloutsGetterFactory:  nil,
@@ -531,10 +571,8 @@ func TestWatchEmptyDirectives(t *testing.T) {
 	directiveChan := make(chan *agent.Directive)
 	a.newDirective = directiveChan
 
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
 	go func() {
-		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 
@@ -581,6 +619,10 @@ func TestWatchStopReportingDirective(t *testing.T) {
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 
 	a := &Agent{
+		Env: &Env{
+			AESSnapshotURL:    parseURL(t, "http://localhost:9697"),
+			AESDiagnosticsURL: diagnosticsURL,
+		},
 		directiveHandler: &BasicDirectiveHandler{
 			DefaultMinReportPeriod: defaultMinReportPeriod,
 			rolloutsGetterFactory:  nil,
@@ -605,14 +647,11 @@ func TestWatchStopReportingDirective(t *testing.T) {
 		directives: directiveChan,
 	}
 	a.comm = c
-	a.connInfo = &ConnInfo{hostname: "localhost", port: "8080", secure: false}
-
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
+	a.ConnAddress = &ConnInfo{hostname: "localhost", port: "8080", secure: false}
 
 	// start watch
 	go func() {
-		err := a.watch(ctx, "http://localhost:9697", diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 
@@ -638,7 +677,7 @@ func TestWatchStopReportingDirective(t *testing.T) {
 	assert.True(t, a.reportingStopped)
 	// assert that no snapshots were sent
 	assert.Equal(t, len(client.GetSnapshots()), 0, "No snapshots should have been sent to the client")
-	assert.False(t, a.reportRunning.Value())
+	assert.False(t, a.reportRunning.Load())
 }
 
 // Start a watch. Configure the mock client to error when Report() is called
@@ -649,6 +688,9 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 	ambId := getRandomAmbassadorID()
 	a := &Agent{
+		Env: &Env{
+			AESDiagnosticsURL: diagnosticsURL,
+		},
 		directiveHandler: &BasicDirectiveHandler{
 			DefaultMinReportPeriod: defaultMinReportPeriod,
 			rolloutsGetterFactory:  nil,
@@ -658,19 +700,18 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 	}
 	a.reportComplete = make(chan error)
 	a.reportingStopped = false
-	a.reportRunning.Set(false)
+	a.reportRunning.Store(false)
 	// set to 3 seconds so we can reliably assert that reportRunning is true later
 	minReport, err := time.ParseDuration("3s")
 	assert.Nil(t, err)
-	a.minReportPeriod = minReport
+	a.MinReportPeriod = minReport
 	id := agent.Identity{}
 	a.agentID = &id
-	a.ambassadorAPIKey = "mycoolapikey"
-	a.ambassadorAPIKeyEnvVarValue = a.ambassadorAPIKey
-	a.agentCloudResourceConfigName = "bogusvalue"
+	a.AmbassadorAPIKey = "mycoolapikey"
+	a.ambassadorAPIKeyEnvVarValue = a.AmbassadorAPIKey
+	a.AgentConfigResourceName = "bogusvalue"
 	// needs to match `address` from moduleConfigRaw below
-	a.connAddress = "http://localhost:8080"
-	a.connInfo = &ConnInfo{hostname: "localhost", port: "8080", secure: false}
+	a.ConnAddress = &ConnInfo{hostname: "localhost", port: "8080", secure: false}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// setup the snapshot we'll send
 		snapshot := snapshotTypes.Snapshot{
@@ -688,6 +729,7 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 		assert.NoError(t, err)
 	}))
 	defer ts.Close()
+	a.AESSnapshotURL = parseURL(t, ts.URL)
 	mockError := errors.New("MockClient: Error sending report")
 
 	client := &MockClient{
@@ -707,12 +749,10 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 	a.comm = c
 
 	watchDone := make(chan error)
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
 
 	// start the watch
 	go func() {
-		err := a.watch(ctx, ts.URL, diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 
@@ -722,7 +762,7 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 		// make sure that we got an error and that error is the same one we configured the
 		// mock client to send
 		assert.ErrorIs(t, err, mockError)
-		assert.False(t, a.reportRunning.Value())
+		assert.False(t, a.reportRunning.Load())
 		cancel()
 	case err := <-watchDone:
 		if err != nil {
@@ -773,6 +813,9 @@ func TestWatchWithSnapshot(t *testing.T) {
 	clusterID := "coolcluster"
 	ambId := getRandomAmbassadorID()
 	a := &Agent{
+		Env: &Env{
+			AESDiagnosticsURL: diagnosticsURL,
+		},
 		directiveHandler: &BasicDirectiveHandler{
 			DefaultMinReportPeriod: defaultMinReportPeriod,
 			rolloutsGetterFactory:  nil,
@@ -782,21 +825,20 @@ func TestWatchWithSnapshot(t *testing.T) {
 	}
 	a.reportComplete = make(chan error)
 	a.reportingStopped = false
-	a.reportRunning.Set(false)
+	a.reportRunning.Store(false)
 
 	id := agent.Identity{}
 	// set to 0 seconds so we can reliably assert that report running is false later
 	minReport, err := time.ParseDuration("0s")
 	assert.Nil(t, err)
-	a.minReportPeriod = minReport
+	a.MinReportPeriod = minReport
 	a.agentID = &id
 	// needs to matched parsed ish below
-	a.connAddress = "http://localhost:8080/"
-	a.connInfo = &ConnInfo{hostname: "localhost", port: "8080", secure: false}
+	a.ConnAddress = &ConnInfo{hostname: "localhost", port: "8080", secure: false}
 	apiKey := "coolapikey"
-	a.ambassadorAPIKey = apiKey
+	a.AmbassadorAPIKey = apiKey
 	a.ambassadorAPIKeyEnvVarValue = apiKey
-	a.agentCloudResourceConfigName = "bogusvalue"
+	a.AgentConfigResourceName = "bogusvalue"
 	snapshot := &snapshotTypes.Snapshot{
 		Invalid: []*kates.Unstructured{
 			// everything that's not errors or metadata here needs to get scrubbed
@@ -853,6 +895,7 @@ func TestWatchWithSnapshot(t *testing.T) {
 		snapshotSentTime = time.Now()
 	}))
 	defer ts.Close()
+	a.AESSnapshotURL = parseURL(t, ts.URL)
 
 	// setup the mock client
 	client := &MockClient{}
@@ -920,12 +963,10 @@ func TestWatchWithSnapshot(t *testing.T) {
 			},
 		},
 	}
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
 
 	// start the watch
 	go func() {
-		err := a.watch(ctx, ts.URL, diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 
@@ -1019,9 +1060,7 @@ func TestWatchWithSnapshot(t *testing.T) {
 	assert.NotNil(t, actualIdentity.Version)      //nolint:staticcheck // deprecated
 	assert.Equal(t, "", actualIdentity.Version)   //nolint:staticcheck // deprecated
 	assert.Equal(t, clusterID, actualIdentity.ClusterId)
-	parsedURL, err := url.Parse(ts.URL)
-	assert.Nil(t, err)
-	assert.Equal(t, actualIdentity.Hostname, parsedURL.Hostname())
+	assert.Equal(t, actualIdentity.Hostname, parseURL(t, ts.URL).Hostname())
 }
 
 // Setup a watch.
@@ -1032,6 +1071,9 @@ func TestWatchEmptySnapshot(t *testing.T) {
 	ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 
 	a := &Agent{
+		Env: &Env{
+			AESDiagnosticsURL: diagnosticsURL,
+		},
 		directiveHandler: &BasicDirectiveHandler{
 			DefaultMinReportPeriod: defaultMinReportPeriod,
 			rolloutsGetterFactory:  nil,
@@ -1042,7 +1084,7 @@ func TestWatchEmptySnapshot(t *testing.T) {
 	a.reportComplete = make(chan error)
 	minReport, err := time.ParseDuration("1ms")
 	assert.Nil(t, err)
-	a.minReportPeriod = minReport
+	a.MinReportPeriod = minReport
 	watchDone := make(chan error)
 
 	snapshotRequested := make(chan bool)
@@ -1066,10 +1108,9 @@ func TestWatchEmptySnapshot(t *testing.T) {
 		}
 	}))
 	defer ts.Close()
-	rolloutCallback := make(chan *GenericCallback)
-	appCallback := make(chan *GenericCallback)
+	a.AESSnapshotURL = parseURL(t, ts.URL)
 	go func() {
-		err := a.watch(ctx, ts.URL, diagnosticsURL, "127.0.0.1", make(<-chan struct{}), make(<-chan struct{}), rolloutCallback, appCallback)
+		err := a.watch(ctx, make(<-chan struct{}), make(<-chan struct{}))
 		watchDone <- err
 	}()
 	select {
@@ -1086,5 +1127,5 @@ func TestWatchEmptySnapshot(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Watch did not end")
 	}
-	assert.False(t, a.reportRunning.Value())
+	assert.False(t, a.reportRunning.Load())
 }

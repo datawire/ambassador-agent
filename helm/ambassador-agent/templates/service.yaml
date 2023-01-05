@@ -12,8 +12,7 @@ spec:
   type: {{ .Values.service.type }}
   ports:
     - port: 80
-      targetPort: 8080
-      protocol: TCP
       name: http
+      targetPort: http
   selector:
     {{- include "ambassador-agent.selectorLabels" . | nindent 4 }}

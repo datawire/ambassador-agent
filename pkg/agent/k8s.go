@@ -58,9 +58,8 @@ func NewDynamicClient(di dynamic.Interface, informerFn InformerFunc) *DynamicCli
 // Informer holds the operations necessary from a k8s informer in order to
 // provide the functionality to watch a generic resource.
 type Informer interface {
-	AddEventHandler(handler cache.ResourceEventHandler)
-	Run(stopCh <-chan struct{})
-	ListCache() []interface{}
+	cache.SharedIndexInformer
+	ListCache() []any
 }
 
 type InformerFunc func(dynamic.Interface, string, *schema.GroupVersionResource) Informer
@@ -72,7 +71,7 @@ type K8sInformer struct {
 
 // ListCache will return the current state of the cache store from the Kubernetes
 // informer.
-func (i *K8sInformer) ListCache() []interface{} {
+func (i *K8sInformer) ListCache() []any {
 	return i.GetStore().List()
 }
 
@@ -106,7 +105,7 @@ func (dc *DynamicClient) WatchGeneric(ctx context.Context, ns string, gvr *schem
 		close(callbackChan)
 	}()
 	i := dc.newInformer(dc.di, ns, gvr)
-	i.AddEventHandler(
+	_, err := i.AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
 				dlog.Debugf(ctx, "WatchGeneric: AddFunc called for resource %q", gvr.String())
@@ -137,6 +136,9 @@ func (dc *DynamicClient) WatchGeneric(ctx context.Context, ns string, gvr *schem
 			},
 		},
 	)
+	if err != nil {
+		dlog.Error(ctx, err)
+	}
 	go i.Run(ctx.Done())
 	dlog.Infof(ctx, "WatchGeneric: Listening for events from resource %q", gvr.String())
 	return callbackChan
