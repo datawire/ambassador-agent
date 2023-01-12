@@ -31,6 +31,12 @@ func NewCoreWatchers(ctx context.Context, namespaces []string, om ObjectModifier
 		L: &sync.Mutex{},
 	}
 
+	// if there are no default namespaces to watch, the watchers need to set thier namespace to "",
+	// which will set them to watch the whole cluster
+	if len(namespaces) == 0 {
+		namespaces = append(namespaces, "")
+	}
+
 	coreWatchers := &CoreWatchers{
 		cmapsWatchers:    k8sapi.NewWatcherGroup[*core.ConfigMap](),
 		deployWatchers:   k8sapi.NewWatcherGroup[*apps.Deployment](),
@@ -41,18 +47,11 @@ func NewCoreWatchers(ctx context.Context, namespaces []string, om ObjectModifier
 	}
 
 	// TODO equals func to prevent over-broadcasting
-	if len(namespaces) > 0 {
-		for _, ns := range namespaces {
-			_ = coreWatchers.cmapsWatchers.AddWatcher(k8sapi.NewWatcher[*core.ConfigMap]("configmaps", coreClient, cond, k8sapi.WithNamespace[*core.ConfigMap](ns)))
-			_ = coreWatchers.deployWatchers.AddWatcher(k8sapi.NewWatcher[*apps.Deployment]("deployments", appClient, cond, k8sapi.WithNamespace[*apps.Deployment](ns)))
-			_ = coreWatchers.podWatchers.AddWatcher(k8sapi.NewWatcher[*core.Pod]("pods", coreClient, cond, k8sapi.WithNamespace[*core.Pod](ns)))
-			_ = coreWatchers.endpointWatchers.AddWatcher(k8sapi.NewWatcher[*core.Endpoints]("endpoints", coreClient, cond, k8sapi.WithNamespace[*core.Endpoints](ns)))
-		}
-	} else {
-		_ = coreWatchers.cmapsWatchers.AddWatcher(k8sapi.NewWatcher[*core.ConfigMap]("configmaps", coreClient, cond))
-		_ = coreWatchers.deployWatchers.AddWatcher(k8sapi.NewWatcher[*apps.Deployment]("deployments", appClient, cond))
-		_ = coreWatchers.podWatchers.AddWatcher(k8sapi.NewWatcher[*core.Pod]("pods", coreClient, cond))
-		_ = coreWatchers.endpointWatchers.AddWatcher(k8sapi.NewWatcher[*core.Endpoints]("endpoints", coreClient, cond))
+	for _, ns := range namespaces {
+		_ = coreWatchers.cmapsWatchers.AddWatcher(k8sapi.NewWatcher[*core.ConfigMap]("configmaps", coreClient, cond, k8sapi.WithNamespace[*core.ConfigMap](ns)))
+		_ = coreWatchers.deployWatchers.AddWatcher(k8sapi.NewWatcher[*apps.Deployment]("deployments", appClient, cond, k8sapi.WithNamespace[*apps.Deployment](ns)))
+		_ = coreWatchers.podWatchers.AddWatcher(k8sapi.NewWatcher[*core.Pod]("pods", coreClient, cond, k8sapi.WithNamespace[*core.Pod](ns)))
+		_ = coreWatchers.endpointWatchers.AddWatcher(k8sapi.NewWatcher[*core.Endpoints]("endpoints", coreClient, cond, k8sapi.WithNamespace[*core.Endpoints](ns)))
 	}
 
 	return coreWatchers
