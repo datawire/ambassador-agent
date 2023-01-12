@@ -326,9 +326,7 @@ func (a *Agent) Watch(ctx context.Context) error {
 	a.handleAmbassadorEndpointChange(ctx, a.AESSnapshotURL.Hostname())
 	ambCh := k8sapi.Subscribe(ctx, a.ambassadorWatcher.cond)
 
-	if err := a.argoWatch(ctx); err != nil {
-		return err
-	}
+	go a.argoWatch(ctx)
 	return a.watch(ctx, configCh, ambCh)
 }
 
@@ -347,10 +345,11 @@ func hasResource(ctx context.Context, resourceLists []*metav1.APIResourceList, r
 	return false
 }
 
-func (a *Agent) argoWatch(ctx context.Context) error {
+func (a *Agent) argoWatch(ctx context.Context) {
 	client, err := kates.NewClient(kates.ClientConfig{})
 	if err != nil {
-		return err
+		dlog.Errorf(ctx, "Error making kates client: %s", err)
+		return
 	}
 	ns := kates.NamespaceAll
 	dc := NewDynamicClient(client.DynamicInterface(), NewK8sInformer)
@@ -368,7 +367,8 @@ func (a *Agent) argoWatch(ctx context.Context) error {
 	for {
 		_, resourcesLists, err := k8sapi.GetK8sInterface(ctx).Discovery().ServerGroupsAndResources()
 		if err != nil {
-			return err
+			dlog.Errorf(ctx, "Error getting resources list: %s", err)
+			return
 		}
 
 		// Using a func() here to prevent lint from complaining about a non-existent context leak.
@@ -409,7 +409,7 @@ func (a *Agent) argoWatch(ctx context.Context) error {
 		}
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case <-time.After(recheckDuration):
 		}
 	}
