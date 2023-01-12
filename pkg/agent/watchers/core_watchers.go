@@ -31,8 +31,8 @@ func NewCoreWatchers(ctx context.Context, namespaces []string, om ObjectModifier
 		L: &sync.Mutex{},
 	}
 
-	// if there are no namespaces to watch, the watchers need to set their namespace to "",
-	// which will set them to watch the whole cluster
+	// if there are no namespaces to watch, create one watcher with namespace "",
+	// which will watch the whole cluster
 	if len(namespaces) == 0 {
 		namespaces = append(namespaces, "")
 	}
