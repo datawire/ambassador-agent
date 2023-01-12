@@ -525,7 +525,7 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			} else {
 				if a.clusterId == "" {
 					ns := "default"
-					if len(a.NamespacesToWatch) > 0 && a.NamespacesToWatch[0] != "" {
+					if len(a.NamespacesToWatch) > 0 {
 						ns = a.AgentNamespace
 					}
 					a.clusterId = a.getClusterID(ctx, ns) // get cluster id for ambMeta

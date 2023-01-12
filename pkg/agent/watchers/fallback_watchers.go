@@ -26,6 +26,12 @@ func NewFallbackWatcher(ctx context.Context, namespaces []string, om ObjectModif
 		L: &sync.Mutex{},
 	}
 
+	// if there are no namespaces to watch, create one watcher with namespace "",
+	// which will watch the whole cluster
+	if len(namespaces) == 0 {
+		namespaces = append(namespaces, "")
+	}
+
 	// TODO equals func to prevent over-broadcasting
 	siWatcher := &FallbackWatchers{
 		serviceWatchers: k8sapi.NewWatcherGroup[*core.Service](),

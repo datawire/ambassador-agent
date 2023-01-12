@@ -128,9 +128,9 @@ unit-test:
 	go test -count=1 ./cmd/... ./pkg/...
 
 .PHONY: apply
-apply:
-	helm install ambassador-agent ./helm/ambassador-agent -n ambassador --set image.pullPolicy=Always
+apply: push-image
+	helm install ambassador-agent ./helm/ambassador-agent --set image.fullImageOverride=$(IMAGE) --set logLevel=DEBUG --set cloudConnectToken=$(APIKEY)
 
 .PHONY: delete
 delete:
-	helm delete ambassador-agent -n ambassador
+	helm delete ambassador-agent
