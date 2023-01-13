@@ -143,12 +143,12 @@ func main() {
 					ctx, watchCancel = context.WithCancel(ctx)
 					err := ambAgent.Watch(ctx)
 					if err != nil {
-						dlog.Errorf(ctx, "Watchers stopped unexpectantly: %s", err)
+						dlog.Errorf(ctx, "Watchers stopped unexpectedly: %s", err)
 					}
 				},
 				OnStoppedLeading: func() {
 					// we can do cleanup here
-					dlog.Info(ctx, "Lease-lock lost")
+					dlog.Info(ctx, "Lease-lock lost, shutting down watchers")
 					if watchCancel != nil {
 						watchCancel()
 						watchCancel = nil

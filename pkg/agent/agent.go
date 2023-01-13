@@ -42,7 +42,7 @@ import (
 const defaultMinReportPeriod = 30 * time.Second
 const (
 	cloudConnectTokenKey           = "CLOUD_CONNECT_TOKEN"
-	cloudConnectTokenDefaultSuffix = "agent-cloud-token"
+	cloudConnectTokenDefaultSuffix = "-cloud-token"
 )
 
 type Comm interface {
@@ -265,7 +265,7 @@ func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
 func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret, cMaps []*kates.ConfigMap) {
 	// if the key is new, reset the connection, so we use a new api key (or break the connection if the api key was
 	// unset). The agent will reset the connection the next time it tries to send a report
-	maybeResetComm := func(newKey string, a *Agent) {
+	maybeResetComm := func(newKey string) {
 		if newKey != a.AmbassadorAPIKey {
 			a.AmbassadorAPIKey = newKey
 			a.ClearComm()
@@ -282,7 +282,7 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 				continue
 			}
 			dlog.Infof(ctx, "Setting cloud connect token from secret: %s", secret.GetName())
-			maybeResetComm(string(connTokenBytes), a)
+			maybeResetComm(string(connTokenBytes))
 			return
 		}
 	}
@@ -297,7 +297,7 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 				continue
 			}
 			dlog.Infof(ctx, "Setting cloud connect token from configmap: %s", cm.GetName())
-			maybeResetComm(connTokenBytes, a)
+			maybeResetComm(connTokenBytes)
 			return
 		}
 	}
@@ -312,7 +312,7 @@ func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret
 		dlog.Errorf(ctx, "Unable to get cloud connect token. This agent will do nothing.")
 	}
 	// always run maybeResetComm so that the agent can be turned "off"
-	maybeResetComm(a.ambassadorAPIKeyEnvVarValue, a)
+	maybeResetComm(a.ambassadorAPIKeyEnvVarValue)
 }
 
 // Watch is the work performed by the main goroutine for the Agent. It processes
