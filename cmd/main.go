@@ -7,15 +7,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/datawire/ambassador-agent/pkg/agent"
 	"github.com/datawire/dlib/dgroup"
 	"github.com/datawire/dlib/dlog"
 	"github.com/datawire/k8sapi/pkg/k8sapi"
+
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -76,7 +77,7 @@ func main() {
 		// our context, which the leader election code will observe and
 		// step down
 		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+		signal.Notify(ch, os.Interrupt, unix.SIGTERM)
 		go func() {
 			<-ch
 			dlog.Info(ctx, "Received termination, signaling shutdown")
@@ -107,7 +108,10 @@ func main() {
 			se := &apierrors.StatusError{}
 			if errors.As(err, &se) && se.Status().Code == http.StatusForbidden {
 				// if we do not have permissions, skip leader election
-				dlog.Warnf(ctx, "Agent has no permissions to work with leases; will disable leader election. This may be inefficient. To fix, please install the agent from a new version of its helm chart")
+				dlog.Warnf(ctx, "%s%s",
+					"Agent has no permissions to work with leases; will disable leader election. This may be inefficient. ",
+					"To fix, please install the agent from a new version of its helm chart.",
+				)
 				return ambAgent.Watch(ctx)
 			} else {
 				// This may be as simple as a not found
@@ -135,9 +139,12 @@ func main() {
 			RetryPeriod:     8 * time.Second,
 			Callbacks: leaderelection.LeaderCallbacks{
 				OnStartedLeading: func(ctx context.Context) {
-					dlog.Info(ctx, "Lease-lock aquired, watching cluster")
+					dlog.Info(ctx, "Lease-lock acquired, watching cluster")
 					ctx, watchCancel = context.WithCancel(ctx)
-					ambAgent.Watch(ctx)
+					err := ambAgent.Watch(ctx)
+					if err != nil {
+						dlog.Errorf(ctx, "Watchers stopped unexpectantly: %s", err)
+					}
 				},
 				OnStoppedLeading: func() {
 					// we can do cleanup here
@@ -154,7 +161,7 @@ func main() {
 						return
 					}
 					// uses lease-lock ctx, probably ok
-					dlog.Infof(ctx, "a different agent aquired the lease-lock: %s", identity)
+					dlog.Infof(ctx, "a different agent acquired the lease-lock: %s", identity)
 				},
 			},
 		})
