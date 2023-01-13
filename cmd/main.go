@@ -108,7 +108,7 @@ func main() {
 			se := &apierrors.StatusError{}
 			if errors.As(err, &se) && se.Status().Code == http.StatusForbidden {
 				// if we do not have permissions, skip leader election
-				dlog.Warnf(ctx, "%s%s",
+				dlog.Warn(ctx,
 					"Agent has no permissions to work with leases; will disable leader election. This may be inefficient. ",
 					"To fix, please install the agent from a new version of its helm chart.",
 				)
