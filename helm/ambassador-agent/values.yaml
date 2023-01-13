@@ -80,3 +80,5 @@ rbac:
   argo: true
 
 createNamespace: false
+
+tolerations: []
