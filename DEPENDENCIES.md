@@ -128,7 +128,7 @@ following Free and Open Source software:
     golang.org/x/net                                  v0.4.0                                3-clause BSD license
     golang.org/x/oauth2                               v0.0.0-20220608161450-d0670ef3b1eb    3-clause BSD license
     golang.org/x/sync                                 v0.0.0-20220722155255-886fb9371eb4    3-clause BSD license
-    golang.org/x/sys                                  v0.3.0                                3-clause BSD license
+    golang.org/x/sys                                  v0.4.0                                3-clause BSD license
     golang.org/x/term                                 v0.3.0                                3-clause BSD license
     golang.org/x/text                                 v0.5.0                                3-clause BSD license
     golang.org/x/time                                 v0.0.0-20220609170525-579cf78fd858    3-clause BSD license
