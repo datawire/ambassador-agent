@@ -713,7 +713,7 @@ func (a *Agent) ReportMetrics(ctx context.Context) {
 		return
 	}
 	dlog.Debugf(ctx, "Relaying %d metric(s)", relayedMetricCount)
-
+	a.metricsReportRunning.Store(true)
 	go a.reportMetrics(ctx, outMessage, a.MinReportPeriod, a.AmbassadorAPIKey) // minReportPeriod is the one set for snapshots
 }
 
