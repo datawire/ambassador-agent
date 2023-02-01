@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	corev1 "k8s.io/api/core/v1"
 	extv1beta1 "k8s.io/api/extensions/v1beta1"
 	v1networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -83,7 +82,7 @@ func (s *suiteNetworkWatcher) TestSpecConvertWithDefaultBackend() {
 		Backend: &extv1beta1.IngressBackend{
 			ServiceName: "http",
 			ServicePort: intstr.FromString("http"),
-			Resource:    (*corev1.TypedLocalObjectReference)(ingress.Spec.DefaultBackend.Resource),
+			Resource:    ingress.Spec.DefaultBackend.Resource,
 		},
 		TLS:   []extv1beta1.IngressTLS{},
 		Rules: []extv1beta1.IngressRule{},

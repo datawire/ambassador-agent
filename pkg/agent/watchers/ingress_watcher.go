@@ -7,7 +7,6 @@ import (
 	v1networking "k8s.io/api/networking/v1"
 
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
 	extv1beta1 "k8s.io/api/extensions/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,7 +44,7 @@ func (n *networkWatcher) convertStatus(ing *v1networking.Ingress) extv1beta1.Ing
 			ports[pi] = extv1beta1.IngressPortStatus{
 				Port:     port.Port,
 				Error:    port.Error,
-				Protocol: corev1.Protocol(port.Protocol),
+				Protocol: port.Protocol,
 			}
 		}
 		lbis[i] = extv1beta1.IngressLoadBalancerIngress{
@@ -73,7 +72,7 @@ func (n *networkWatcher) convertIngressBackend(backend *v1networking.IngressBack
 	return &extv1beta1.IngressBackend{
 		ServiceName: backend.Service.Name,
 		ServicePort: servicePort,
-		Resource:    (*corev1.TypedLocalObjectReference)(backend.Resource),
+		Resource:    backend.Resource,
 	}
 }
 

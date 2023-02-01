@@ -97,7 +97,6 @@ require (
 	k8s.io/cli-runtime v0.26.0
 	k8s.io/client-go v0.26.0
 	k8s.io/kubectl v0.26.0
-	k8s.io/kubernetes v1.26.0
 )
 
 require (
@@ -224,6 +223,7 @@ require (
 	k8s.io/component-base v0.26.0 // indirect
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
+	k8s.io/kubernetes v1.26.0 // indirect
 	k8s.io/metrics v0.26.0 // indirect
 	k8s.io/utils v0.0.0-20221107191617-1a15be271d1d // indirect
 	oras.land/oras-go v1.2.0 // indirect
