@@ -2,8 +2,9 @@ package watchers
 
 import (
 	"context"
-	v1networking "k8s.io/api/networking/v1"
 	"sync"
+
+	v1networking "k8s.io/api/networking/v1"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
