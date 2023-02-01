@@ -2,6 +2,7 @@ package watchers
 
 import (
 	"context"
+	v1networking "k8s.io/api/networking/v1"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -11,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/kubernetes/pkg/apis/networking"
 
 	"github.com/datawire/k8sapi/pkg/k8sapi"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
@@ -24,7 +24,7 @@ type ingressWatcher interface {
 }
 
 type networkWatcher struct {
-	watcher k8sapi.WatcherGroup[*networking.Ingress]
+	watcher k8sapi.WatcherGroup[*v1networking.Ingress]
 	om      ObjectModifier
 }
 
@@ -36,7 +36,7 @@ func (n *networkWatcher) Cancel() {
 	n.watcher.Cancel()
 }
 
-func (n *networkWatcher) convertStatus(ing *networking.Ingress) extv1beta1.IngressStatus {
+func (n *networkWatcher) convertStatus(ing *v1networking.Ingress) extv1beta1.IngressStatus {
 	lbis := make([]extv1beta1.IngressLoadBalancerIngress, len(ing.Status.LoadBalancer.Ingress))
 	for i, lbi := range ing.Status.LoadBalancer.Ingress {
 		ports := make([]extv1beta1.IngressPortStatus, len(lbi.Ports))
@@ -60,7 +60,7 @@ func (n *networkWatcher) convertStatus(ing *networking.Ingress) extv1beta1.Ingre
 	}
 }
 
-func (n *networkWatcher) convertIngressBackend(backend *networking.IngressBackend) *extv1beta1.IngressBackend {
+func (n *networkWatcher) convertIngressBackend(backend *v1networking.IngressBackend) *extv1beta1.IngressBackend {
 	var servicePort intstr.IntOrString
 	pt := backend.Service.Port
 	if pt.Name != "" {
@@ -76,7 +76,7 @@ func (n *networkWatcher) convertIngressBackend(backend *networking.IngressBacken
 	}
 }
 
-func (n *networkWatcher) convertSpec(ing *networking.Ingress) extv1beta1.IngressSpec {
+func (n *networkWatcher) convertSpec(ing *v1networking.Ingress) extv1beta1.IngressSpec {
 	tlss := []extv1beta1.IngressTLS{}
 	for _, tls := range ing.Spec.TLS {
 		tlss = append(tlss, extv1beta1.IngressTLS{
@@ -103,9 +103,15 @@ func (n *networkWatcher) convertSpec(ing *networking.Ingress) extv1beta1.Ingress
 			},
 		})
 	}
+
+	var defaultBackend *extv1beta1.IngressBackend
+	if ing.Spec.DefaultBackend != nil {
+		defaultBackend = n.convertIngressBackend(ing.Spec.DefaultBackend)
+	}
+
 	return extv1beta1.IngressSpec{
 		IngressClassName: ing.Spec.IngressClassName,
-		Backend:          n.convertIngressBackend(ing.Spec.DefaultBackend),
+		Backend:          defaultBackend,
 		TLS:              tlss,
 		Rules:            rules,
 	}
@@ -159,9 +165,9 @@ func getIngressWatcher(ctx context.Context, namespaces []string, cond *sync.Cond
 	k8sif := k8sapi.GetK8sInterface(ctx)
 	if isNetworkingAPIAvailable(ctx, k8sif, namespaces) {
 		netClient := k8sif.NetworkingV1().RESTClient()
-		watcher := k8sapi.NewWatcherGroup[*networking.Ingress]()
+		watcher := k8sapi.NewWatcherGroup[*v1networking.Ingress]()
 		for _, ns := range namespaces {
-			_ = watcher.AddWatcher(k8sapi.NewWatcher[*networking.Ingress]("ingresses", netClient, cond, k8sapi.WithNamespace[*networking.Ingress](ns)))
+			_ = watcher.AddWatcher(k8sapi.NewWatcher[*v1networking.Ingress]("ingresses", netClient, cond, k8sapi.WithNamespace[*v1networking.Ingress](ns)))
 		}
 		return &networkWatcher{watcher: watcher, om: om}
 	}
