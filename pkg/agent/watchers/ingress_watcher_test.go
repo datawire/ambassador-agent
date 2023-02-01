@@ -51,7 +51,7 @@ func (s *suiteNetworkWatcher) TestSpecConvertNoBackend() {
 	}, converted)
 }
 
-func (s *suiteNetworkWatcher) TestSpecConvertWithDefaultBackend() {
+func (s *suiteNetworkWatcher) TestSpecConvertWithDefaultBackendAndRules() {
 	// given
 	ingress := &v1networking.Ingress{
 		Spec: v1networking.IngressSpec{
@@ -63,6 +63,46 @@ func (s *suiteNetworkWatcher) TestSpecConvertWithDefaultBackend() {
 						Name:   "http",
 						Number: 80,
 					},
+				},
+			},
+			Rules: []v1networking.IngressRule{{
+				Host: "www.example.com",
+				IngressRuleValue: v1networking.IngressRuleValue{
+					HTTP: &v1networking.HTTPIngressRuleValue{
+						Paths: []v1networking.HTTPIngressPath{
+							{
+								Path:     "/apis",
+								PathType: nil,
+								Backend: v1networking.IngressBackend{
+									Service: &v1networking.IngressServiceBackend{
+										Name: "api",
+										Port: v1networking.ServiceBackendPort{
+											Name:   "http",
+											Number: 80,
+										},
+									},
+								},
+							},
+							{
+								Path:     "/grpc",
+								PathType: nil,
+								Backend: v1networking.IngressBackend{
+									Service: &v1networking.IngressServiceBackend{
+										Name: "grpc",
+										Port: v1networking.ServiceBackendPort{
+											Number: 8080,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}},
+			TLS: []v1networking.IngressTLS{
+				{
+					Hosts:      []string{"www.example.com"},
+					SecretName: "my-certificate",
 				},
 			},
 		},
@@ -84,8 +124,45 @@ func (s *suiteNetworkWatcher) TestSpecConvertWithDefaultBackend() {
 			ServicePort: intstr.FromString("http"),
 			Resource:    ingress.Spec.DefaultBackend.Resource,
 		},
-		TLS:   []extv1beta1.IngressTLS{},
-		Rules: []extv1beta1.IngressRule{},
+		TLS: []extv1beta1.IngressTLS{
+			{
+				Hosts:      []string{"www.example.com"},
+				SecretName: "my-certificate",
+			},
+		},
+		Rules: []extv1beta1.IngressRule{{
+			Host: "www.example.com",
+			IngressRuleValue: extv1beta1.IngressRuleValue{
+				HTTP: &extv1beta1.HTTPIngressRuleValue{
+					Paths: []extv1beta1.HTTPIngressPath{
+						{
+							Path: "/apis",
+							Backend: extv1beta1.IngressBackend{
+								ServiceName: "api",
+								ServicePort: intstr.IntOrString{
+									Type:   intstr.String,
+									IntVal: 0,
+									StrVal: "http",
+								},
+								Resource: nil,
+							},
+						},
+						{
+							Path: "/grpc",
+							Backend: extv1beta1.IngressBackend{
+								ServiceName: "grpc",
+								ServicePort: intstr.IntOrString{
+									Type:   intstr.Int,
+									IntVal: 8080,
+									StrVal: "",
+								},
+								Resource: nil,
+							},
+						},
+					},
+				},
+			},
+		}},
 	}, converted)
 }
 
