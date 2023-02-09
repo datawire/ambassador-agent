@@ -19,6 +19,16 @@ jobs:
       - name: "Generate dependency information"
         shell: bash
         run: make generate
+      - name: "Save dependency changes if committer is dependabot"
+        uses: datawire/go-mkopensource/actions/save-dependabot-changes@v0.0.1
+        id: changed-by-dependabot
+        with:
+          github_token: ${{ secrets.GH_D6EAUTOMATON }}
+      - name: "Abort if dependabot triggered a dependency update"
+        if: steps.changed-by-dependabot.outputs.is_dirty == 'true'
+        run: |
+          echo "Dependabot triggered a dependency update. Aborting workflow."
+          exit 1
       - name: "Check dependency files are up-to-date"
         id: check
         shell: bash
