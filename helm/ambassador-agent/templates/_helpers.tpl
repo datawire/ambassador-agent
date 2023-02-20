@@ -35,7 +35,6 @@ Common labels
 */}}
 {{- define "ambassador-agent.labels" -}}
 helm.sh/chart: {{ include "ambassador-agent.chart" . }}
-{{ include "ambassador-agent.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}

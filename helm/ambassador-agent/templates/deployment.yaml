@@ -4,6 +4,7 @@ metadata:
   name: {{ include "ambassador-agent.fullname" . }}
   namespace: {{ include "ambassador-agent.namespace" . }}
   labels:
+    app.kubernetes.io/name: {{ include "ambassador-agent.name" . }}
     {{- include "ambassador-agent.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}

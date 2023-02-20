@@ -5,9 +5,7 @@ metadata:
   namespace: {{ include "ambassador-agent.namespace" . }}
   labels:
     app.kubernetes.io/name: {{ include "ambassador-agent.name" . }}
-    helm.sh/chart: {{ include "ambassador-agent.chart" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{- include "ambassador-agent.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:

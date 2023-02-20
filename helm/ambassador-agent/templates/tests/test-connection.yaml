@@ -3,6 +3,7 @@ kind: Pod
 metadata:
   name: "{{ include "ambassador-agent.fullname" . }}-test-connection"
   labels:
+    app.kubernetes.io/name: {{ include "ambassador-agent.name" . }}
     {{- include "ambassador-agent.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test
