@@ -13,11 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
-	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
-	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 	"github.com/pkg/errors"
 	ioPrometheusClient "github.com/prometheus/client_model/go"
 	"google.golang.org/grpc/peer"
@@ -28,6 +23,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
+	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
+	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 
 	// load all auth plugins.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -41,8 +42,7 @@ import (
 
 const defaultMinReportPeriod = 30 * time.Second
 const (
-	cloudConnectTokenKey           = "CLOUD_CONNECT_TOKEN"
-	cloudConnectTokenDefaultSuffix = "-cloud-token"
+	cloudConnectTokenKey = "CLOUD_CONNECT_TOKEN"
 )
 
 type Comm interface {
