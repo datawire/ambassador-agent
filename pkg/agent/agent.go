@@ -13,6 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
+	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
+	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 	"github.com/pkg/errors"
 	ioPrometheusClient "github.com/prometheus/client_model/go"
 	"google.golang.org/grpc/peer"
@@ -24,19 +29,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	// load all auth plugins.
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
 	"github.com/datawire/ambassador-agent/pkg/agent/watchers"
 	"github.com/datawire/ambassador-agent/pkg/api/agent"
 	rpc "github.com/datawire/ambassador-agent/rpc/agent"
 	"github.com/datawire/dlib/dlog"
 	"github.com/datawire/k8sapi/pkg/k8sapi"
-	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
-	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
-	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
-
-	// load all auth plugins.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 const defaultMinReportPeriod = 30 * time.Second
