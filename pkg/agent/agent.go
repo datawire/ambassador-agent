@@ -291,20 +291,14 @@ func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
 			maybeResetComm(a.ambassadorAPIKeyEnvVarValue)
 		}
 
-		connTokenBytes, ok := cm.Data[cloudConnectTokenKey]
-		if !ok {
+		connTokenBytes := cm.Data[cloudConnectTokenKey]
 
-		}
 		dlog.Infof(ctx, "Setting cloud connect token from configmap: %s", cm.GetName())
 		maybeResetComm(connTokenBytes)
 		return
 	}
 
-	connTokenBytes, ok := secret.Data[cloudConnectTokenKey]
-	if !ok {
-		fmt.Println("failed")
-	}
-
+	connTokenBytes := secret.Data[cloudConnectTokenKey]
 	dlog.Infof(ctx, "Setting cloud connect token from secret: %s", secret.GetName())
 	maybeResetComm(string(connTokenBytes))
 }
