@@ -24,11 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/datawire/ambassador-agent/pkg/agent/watchers"
-	"github.com/datawire/ambassador-agent/pkg/api/agent"
-	rpc "github.com/datawire/ambassador-agent/rpc/agent"
-	"github.com/datawire/dlib/dlog"
-	"github.com/datawire/k8sapi/pkg/k8sapi"
 	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
 	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
@@ -37,12 +32,17 @@ import (
 
 	// load all auth plugins.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
+	"github.com/datawire/ambassador-agent/pkg/agent/watchers"
+	"github.com/datawire/ambassador-agent/pkg/api/agent"
+	rpc "github.com/datawire/ambassador-agent/rpc/agent"
+	"github.com/datawire/dlib/dlog"
+	"github.com/datawire/k8sapi/pkg/k8sapi"
 )
 
 const defaultMinReportPeriod = 30 * time.Second
 const (
-	cloudConnectTokenKey           = "CLOUD_CONNECT_TOKEN"
-	cloudConnectTokenDefaultSuffix = "-cloud-token"
+	cloudConnectTokenKey = "CLOUD_CONNECT_TOKEN"
 )
 
 type Comm interface {
@@ -246,73 +246,61 @@ func getAmbDiagnosticsInfo(url *url.URL) (*diagnosticsTypes.Diagnostics, error) 
 }
 
 func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
-	secrets, err := a.configWatchers.secretWatcher.List(ctx)
-	if err != nil {
-		dlog.Warnf(ctx, "Unable to list secrets for cloud connect token: %v", err)
-	}
-	cMaps, err := a.configWatchers.mapsWatcher.List(ctx)
-	if err != nil {
-		dlog.Warnf(ctx, "Unable to list configmaps for cloud connect token: %v", err)
-	}
-	a.setAPIKeyConfigFrom(ctx, secrets, cMaps)
-}
+	secret := &kates.Secret{ObjectMeta: metav1.ObjectMeta{
+		Name:      a.AgentConfigResourceName,
+		Namespace: a.AgentNamespace,
+	}}
 
-// Handle change to the ambassadorAPIKey that we auth to the agent with
-// in order of importance: secret > configmap > environment variable
-// so if a secret exists, read from that. then, check if a config map exists, and read the value
-// from that. If neither a secret nor a configmap exists, use the value from the environment that we
-// stored on startup.
-func (a *Agent) setAPIKeyConfigFrom(ctx context.Context, secrets []*kates.Secret, cMaps []*kates.ConfigMap) {
-	// if the key is new, reset the connection, so we use a new api key (or break the connection if the api key was
-	// unset). The agent will reset the connection the next time it tries to send a report
+	var (
+		ok  bool
+		err error
+	)
+
 	maybeResetComm := func(newKey string) {
 		if newKey != a.AmbassadorAPIKey {
 			a.AmbassadorAPIKey = newKey
 			a.ClearComm()
 		}
 	}
-	// first, check if we have a secret, since we want that value to take if we
-	// can get it.
-	// there _should_ only be one secret here, but we're going to loop and check that the object
-	// meta matches what we expect
-	for _, secret := range secrets {
-		if secret.GetName() == a.AgentConfigResourceName || strings.HasSuffix(secret.GetName(), cloudConnectTokenDefaultSuffix) {
-			connTokenBytes, ok := secret.Data[cloudConnectTokenKey]
-			if !ok {
-				continue
-			}
-			dlog.Infof(ctx, "Setting cloud connect token from secret: %s", secret.GetName())
-			maybeResetComm(string(connTokenBytes))
-			return
-		}
+
+	secret, ok, err = a.configWatchers.secretWatcher.Get(ctx, secret)
+	if err != nil {
+		dlog.Warnf(ctx, "unable to retrieve cloud connect token secret: %v", err)
 	}
 
-	// then, if we don't have a secret, we check for a config map
-	// there _should_ only be one config here, but we're going to loop and check that the object
-	// meta matches what we expect
-	for _, cm := range cMaps {
-		if cm.GetName() == a.AgentConfigResourceName || strings.HasSuffix(cm.GetName(), cloudConnectTokenDefaultSuffix) {
-			connTokenBytes, ok := cm.Data[cloudConnectTokenKey]
-			if !ok {
-				continue
-			}
-			dlog.Infof(ctx, "Setting cloud connect token from configmap: %s", cm.GetName())
-			maybeResetComm(connTokenBytes)
-			return
+	if !ok {
+		cm := &kates.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+			Name:      a.AgentConfigResourceName,
+			Namespace: a.AgentNamespace,
+		}}
+		cm, ok, err = a.configWatchers.mapsWatcher.Get(ctx, cm)
+		if err != nil {
+			dlog.Warnf(ctx, "unable to retrieve cloud connect token configmap: %v", err)
 		}
+		if !ok {
+			// so if we got here, we know something changed, but a config map
+			// nor a secret exist, which means they never existed, or they got
+			// deleted. in this case, we fall back to the env var (which is
+			// likely empty, so in that case, that is basically equivalent to
+			// turning the agent "off")
+			dlog.Infof(ctx, "Setting cloud connect token from environment")
+			if a.ambassadorAPIKeyEnvVarValue == "" {
+				dlog.Errorf(ctx, "Unable to get cloud connect token. This agent will do nothing.")
+			}
+			// always run maybeResetComm so that the agent can be turned "off"
+			maybeResetComm(a.ambassadorAPIKeyEnvVarValue)
+		}
+
+		connTokenBytes := cm.Data[cloudConnectTokenKey]
+
+		dlog.Infof(ctx, "Setting cloud connect token from configmap: %s", cm.GetName())
+		maybeResetComm(connTokenBytes)
+		return
 	}
 
-	// so if we got here, we know something changed, but a config map
-	// nor a secret exist, which means they never existed, or they got
-	// deleted. in this case, we fall back to the env var (which is
-	// likely empty, so in that case, that is basically equivalent to
-	// turning the agent "off")
-	dlog.Infof(ctx, "Setting cloud connect token from environment")
-	if a.ambassadorAPIKeyEnvVarValue == "" {
-		dlog.Errorf(ctx, "Unable to get cloud connect token. This agent will do nothing.")
-	}
-	// always run maybeResetComm so that the agent can be turned "off"
-	maybeResetComm(a.ambassadorAPIKeyEnvVarValue)
+	connTokenBytes := secret.Data[cloudConnectTokenKey]
+	dlog.Infof(ctx, "Setting cloud connect token from secret: %s", secret.GetName())
+	maybeResetComm(string(connTokenBytes))
 }
 
 // Watch is the work performed by the main goroutine for the Agent. It processes
