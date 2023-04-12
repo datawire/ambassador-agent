@@ -1,4 +1,4 @@
-FROM golang:alpine3.15 as build-stage
+FROM golang:alpine3.17 as build-stage
 RUN apk update && \
     apk add --no-cache gcc musl-dev bash make protoc protobuf-dev && \
     go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28 && \
