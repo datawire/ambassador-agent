@@ -289,6 +289,7 @@ func (a *Agent) handleAPIKeyConfigChange(ctx context.Context) {
 			}
 			// always run maybeResetComm so that the agent can be turned "off"
 			maybeResetComm(a.ambassadorAPIKeyEnvVarValue)
+			return
 		}
 
 		connTokenBytes := cm.Data[cloudConnectTokenKey]
