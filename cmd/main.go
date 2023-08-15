@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -53,18 +52,7 @@ func main() {
 
 	ambAgent.SetReportDiagnosticsAllowed(env.AESReportDiagnostics)
 
-	metricsListener, err := net.Listen("tcp", ":8080")
-	if err != nil {
-		dlog.Error(ctx, err.Error())
-		os.Exit(1)
-	}
-	dlog.Info(ctx, "metrics service listening on :8080")
-
 	grp := dgroup.NewGroup(ctx, dgroup.GroupConfig{})
-	grp.Go("metrics-server", func(ctx context.Context) error {
-		metricsServer := agent.NewMetricsServer(ambAgent.MetricsRelayHandler)
-		return metricsServer.Serve(ctx, metricsListener)
-	})
 
 	// Begin lease-lock. watch when we are leader
 	grp.Go("lease-lock-watch", func(ctx context.Context) error {

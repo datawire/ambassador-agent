@@ -3,7 +3,7 @@ following Free and Open Source software:
 
     Name                                              Version                               License(s)
     ----                                              -------                               ----------
-    the Go language standard library ("std")          v1.19                                 3-clause BSD license
+    the Go language standard library ("std")          v1.20.6                               3-clause BSD license
     github.com/Azure/go-ansiterm                      v0.0.0-20210617225240-d185dfc1b5a1    MIT license
     github.com/BurntSushi/toml                        v1.1.0                                MIT license
     github.com/MakeNowJust/heredoc                    v1.0.0                                MIT license
@@ -18,7 +18,6 @@ following Free and Open Source software:
     github.com/blang/semver                           v3.5.1+incompatible                   MIT license
     github.com/cespare/xxhash/v2                      v2.1.2                                MIT license
     github.com/chai2010/gettext-go                    v1.0.2                                3-clause BSD license
-    github.com/cncf/xds/go                            v0.0.0-20220121163655-4a2b9fdd466b    Apache License 2.0
     github.com/containerd/containerd                  v1.6.6                                Apache License 2.0
     github.com/cyphar/filepath-securejoin             v0.2.3                                3-clause BSD license
     github.com/datawire/ambassador-agent/rpc          (modified)                            Apache License 2.0
@@ -35,7 +34,6 @@ following Free and Open Source software:
     github.com/docker/go-units                        v0.5.0                                Apache License 2.0
     github.com/emicklei/go-restful/v3                 v3.9.0                                MIT license
     github.com/emissary-ingress/emissary/v3           v3.3.1                                Apache License 2.0
-    github.com/envoyproxy/protoc-gen-validate         v0.6.7                                Apache License 2.0
     github.com/evanphx/json-patch                     v5.6.0+incompatible                   3-clause BSD license
     github.com/exponent-io/jsonpath                   v0.0.0-20210407135951-1de76d718b3f    MIT license
     github.com/fatih/camelcase                        v1.0.0                                MIT license
