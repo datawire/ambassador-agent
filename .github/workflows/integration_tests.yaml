@@ -4,7 +4,7 @@ on:
     types:
       - labeled
 jobs:
-  build_image:
+  build-image:
     runs-on: ubuntu-latest
     if: ${{ github.event.label.name == 'ok to test' }}
     steps:
@@ -30,9 +30,9 @@ jobs:
         with:
           name: image
           path: build-output/ambassador-agent-image.tar
-  test:
+  go-integration-tests:
     runs-on: ubuntu-latest
-    needs: build_image
+    needs: build-image
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -74,7 +74,7 @@ jobs:
             export KUBECONFIG=${{ steps.kluster.outputs.kubeconfig }}
             export AMBASSADOR_AGENT_DOCKER_IMAGE=datawiredev/ambassador-agent:dev-latest
             export KAT_SERVER_DOCKER_IMAGE=docker.io/datawiredev/kat-server:3.0.1-0.20220817135951-2cb28ef4f415
-            make itest
+            make go-integration-test
       - name: Mark test as succesfull
         run: echo "::set-output name=run_result::success" > run_result
       - name: Cleanup kluster

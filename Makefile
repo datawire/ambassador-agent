@@ -31,10 +31,10 @@ build:
 
 .PHONY: format
 format: $(tools/golangci-lint) ## (QA) Automatically fix linter complaints
-	$(tools/golangci-lint) run --fix --timeout 2m ./... || true
+	$(tools/golangci-lint) run -v --fix --timeout 2m ./... || true
 
 lint: $(tools/golangci-lint) ## (QA) Run the linter
-	$(tools/golangci-lint) run --timeout 8m ./...
+	$(tools/golangci-lint) run -v --timeout 8m ./...
 
 
 .PHONY: protoc
@@ -119,13 +119,16 @@ image-tar: image
 	mkdir -p ./build-output
 	docker save $(IMAGE) > ./build-output/ambassador-agent-image.tar
 
-.PHONY: itest
-itest:
-	go test -p 1 ./integration_tests/...
+.PHONY: go-integration-test
+go-integration-test:
+	go mod download
+	go test -parallel 1 ./integration_tests/... -race
 
-.PHONY: unit-test
-unit-test:
-	go test -count=1 ./cmd/... ./pkg/...
+.PHONY: go-unit-test
+go-unit-test:
+	go mod download
+	go test ./cmd/... -race
+	go test ./pkg/... -race
 
 .PHONY: apply
 apply: push-image
