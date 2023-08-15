@@ -62,7 +62,7 @@ func run() error {
 			kubeconfig, err := kubeceptionRequest(ctx, cli, "PUT", token, clusterName, map[string]string{
 				"wait":           "true",
 				"timeoutSecs":    "7200",
-				"version":        "1.19",
+				"version":        "1.25",
 				"provider":       "preview",
 				"enableSNIRelay": "true",
 			})

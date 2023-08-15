@@ -77,7 +77,7 @@ require (
 	github.com/argoproj/argo-rollouts v1.3.2
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/datawire/ambassador-agent/rpc v0.0.0-20221012222025-09524dc7d59b
-	github.com/datawire/dlib v1.3.1-0.20221228104658-e373c6d44961
+	github.com/datawire/dlib v1.3.1
 	github.com/datawire/envconfig v0.0.0-20221012222025-09524dc7d59b
 	github.com/datawire/k8sapi v0.1.2
 	github.com/emissary-ingress/emissary/v3 v3.3.1
@@ -112,7 +112,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
-	github.com/cncf/xds/go v0.0.0-20220121163655-4a2b9fdd466b // indirect
 	github.com/containerd/containerd v1.6.6 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -124,7 +123,6 @@ require (
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
-	github.com/envoyproxy/protoc-gen-validate v0.6.7 // indirect
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
@@ -172,7 +170,7 @@ require (
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
-	github.com/matttproud/golang_protobuf_extensions v1.0.2 // indirect
+	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
