@@ -5,6 +5,7 @@ func StrToPointer(str string) *string {
 	return &str
 }
 
+// test
 // Float64ToPointer will return the pointer to the given float.
 func Float64ToPointer(f float64) *float64 {
 	return &f
