@@ -1,6 +1,6 @@
 module github.com/datawire/ambassador-agent
 
-go 1.19
+go 1.20
 
 // If you're editing this file, there's a few things you should know:
 //
@@ -77,7 +77,7 @@ require (
 	github.com/argoproj/argo-rollouts v1.3.2
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/datawire/ambassador-agent/rpc v0.0.0-20221012222025-09524dc7d59b
-	github.com/datawire/dlib v1.3.1-0.20221228104658-e373c6d44961
+	github.com/datawire/dlib v1.3.1
 	github.com/datawire/envconfig v0.0.0-20221012222025-09524dc7d59b
 	github.com/datawire/k8sapi v0.1.2
 	github.com/emissary-ingress/emissary/v3 v3.3.1
@@ -170,7 +170,7 @@ require (
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
-	github.com/matttproud/golang_protobuf_extensions v1.0.2 // indirect
+	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect

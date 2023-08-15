@@ -3,7 +3,7 @@ following Free and Open Source software:
 
     Name                                              Version                               License(s)
     ----                                              -------                               ----------
-    the Go language standard library ("std")          v1.19                                 3-clause BSD license
+    the Go language standard library ("std")          v1.20.6                               3-clause BSD license
     github.com/Azure/go-ansiterm                      v0.0.0-20210617225240-d185dfc1b5a1    MIT license
     github.com/BurntSushi/toml                        v1.1.0                                MIT license
     github.com/MakeNowJust/heredoc                    v1.0.0                                MIT license
@@ -21,7 +21,7 @@ following Free and Open Source software:
     github.com/containerd/containerd                  v1.6.6                                Apache License 2.0
     github.com/cyphar/filepath-securejoin             v0.2.3                                3-clause BSD license
     github.com/datawire/ambassador-agent/rpc          (modified)                            Apache License 2.0
-    github.com/datawire/dlib                          v1.3.1-0.20221228104658-e373c6d44961  Apache License 2.0
+    github.com/datawire/dlib                          v1.3.1                                Apache License 2.0
     github.com/datawire/envconfig                     v0.0.0-20221012222025-09524dc7d59b    Apache License 2.0
     github.com/datawire/k8sapi                        v0.1.2                                Apache License 2.0
     github.com/davecgh/go-spew                        v1.1.1                                ISC license
@@ -83,7 +83,7 @@ following Free and Open Source software:
     github.com/mattn/go-colorable                     v0.1.12                               MIT license
     github.com/mattn/go-isatty                        v0.0.14                               MIT license
     github.com/mattn/go-runewidth                     v0.0.9                                MIT license
-    github.com/matttproud/golang_protobuf_extensions  v1.0.2                                Apache License 2.0
+    github.com/matttproud/golang_protobuf_extensions  v1.0.4                                Apache License 2.0
     github.com/mitchellh/copystructure                v1.2.0                                MIT license
     github.com/mitchellh/go-homedir                   v1.1.0                                MIT license
     github.com/mitchellh/go-wordwrap                  v1.0.1                                MIT license
