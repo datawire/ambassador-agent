@@ -14,8 +14,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	ioPrometheusClient "github.com/prometheus/client_model/go"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,7 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	envoyMetrics "github.com/emissary-ingress/emissary/v3/pkg/api/envoy/service/metrics/v3"
 	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates"
 	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
@@ -84,16 +81,6 @@ type Agent struct {
 	rolloutStore *RolloutStore
 	// applicationStore holds Argo Applications state from cluster
 	applicationStore *ApplicationStore
-
-	// A mutex related to the metrics endpoint action, to avoid concurrent (and useless) pushes.
-	metricsRelayMutex sync.Mutex
-
-	// Used to accumulate metrics for a same timestamp before pushing them to the cloud.
-	aggregatedMetrics map[string][]*ioPrometheusClient.MetricFamily
-
-	// Metrics reporting status
-	metricsReportComplete chan error // Report() finished with this error
-	metricsReportRunning  atomic.Bool
 
 	// Extra headers to inject into RPC requests to ambassador cloud.
 	rpcExtraHeaders []string
@@ -162,13 +149,10 @@ func NewAgent(
 	return &Agent{
 		Env:            env,
 		reportComplete: make(chan error),
-		// metricsReportComplete:     make(chan error),
-		// diagnosticsReportComplete: make(chan error),
 
 		ambassadorAPIKeyEnvVarValue: env.AmbassadorAPIKey,
 		directiveHandler:            directiveHandler,
 		rpcExtraHeaders:             rpcExtraHeaders,
-		aggregatedMetrics:           map[string][]*ioPrometheusClient.MetricFamily{},
 
 		// k8sapi watchers
 		coreWatchers:      watchers.NewCoreWatchers(ctx, env.NamespacesToWatch, objectModifier),
@@ -566,10 +550,10 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 				a.reportingStopped, a.reportRunning.Load(), a.reportToSend == nil)
 		}
 
-		// only get diagnostics and metrics from edgissary if it is present
+		// only get diagnostics from edgissary if it is present
 		// TODO get metrics/diagnostics from traffic manager?
 		if !a.emissaryPresent {
-			dlog.Tracef(ctx, "Edgissary not present, not reporting edgissary diagnostics and metrics")
+			dlog.Tracef(ctx, "Edgissary not present, not reporting edgissary diagnostics")
 			continue
 		}
 
@@ -580,12 +564,6 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			// already sending a report or waiting for the minimum time between
 			// reports
 			dlog.Tracef(ctx, "Not reporting diagnostics [reporting stopped = %t] [report running = %t]", a.diagnosticsReportingStopped, a.diagnosticsReportRunning.Load())
-		}
-
-		if !a.reportingStopped && !a.metricsReportRunning.Load() {
-			a.ReportMetrics(ctx)
-		} else {
-			dlog.Tracef(ctx, "Not reporting diagnostics [reporting stopped = %t] [report running = %t]", a.reportingStopped, a.metricsReportRunning.Load())
 		}
 	}
 }
@@ -677,52 +655,6 @@ func (a *Agent) ReportDiagnostics(ctx context.Context, diagnosticsURL *url.URL) 
 			// do nothing if nobody is listening
 		}
 	}(ctx, agentDiagnostics, a.MinReportPeriod, a.AmbassadorAPIKey) // minReportPeriod is the one set for snapshots
-}
-
-// ReportMetrics sends and resets a.aggregatedMetrics.
-func (a *Agent) ReportMetrics(ctx context.Context) {
-	// save, then reset a.aggregatedMetrics
-	a.metricsRelayMutex.Lock()
-	am := a.aggregatedMetrics
-	a.aggregatedMetrics = make(map[string][]*ioPrometheusClient.MetricFamily)
-	a.metricsRelayMutex.Unlock()
-
-	outMessage := &agent.StreamMetricsMessage{
-		Identity:     a.agentID,
-		EnvoyMetrics: []*ioPrometheusClient.MetricFamily{},
-	}
-
-	for _, instanceMetrics := range am {
-		outMessage.EnvoyMetrics = append(outMessage.EnvoyMetrics, instanceMetrics...)
-	}
-
-	relayedMetricCount := len(outMessage.GetEnvoyMetrics())
-	if relayedMetricCount == 0 {
-		dlog.Debug(ctx, "No metrics to send")
-		return
-	}
-	dlog.Debugf(ctx, "Relaying %d metric(s)", relayedMetricCount)
-	a.metricsReportRunning.Store(true)
-	go a.reportMetrics(ctx, outMessage, a.MinReportPeriod, a.AmbassadorAPIKey) // minReportPeriod is the one set for snapshots
-}
-
-// reportMetrics is meant to be called asynchronously, using pinned values as parameters.
-func (a *Agent) reportMetrics(ctx context.Context, metricsReport *agent.StreamMetricsMessage, delay time.Duration, apikey string) {
-	err := a.comm.StreamMetrics(ctx, metricsReport, apikey)
-	if err != nil {
-		dlog.Warnf(ctx, "failed to do metrics report: %+v", err)
-	}
-	dlog.Debugf(ctx, "Finished sending metrics report, sleeping for %s", delay.String())
-	time.Sleep(delay)
-	a.metricsReportRunning.Store(false)
-
-	// make write non-blocking
-	select {
-	case a.metricsReportComplete <- err:
-		// cool we sent something
-	default:
-		// do nothing if nobody is listening
-	}
 }
 
 // ProcessSnapshot turns a Watt/Diag Snapshot into a report that the agent can
@@ -828,44 +760,6 @@ func (a *Agent) ProcessDiagnostics(ctx context.Context, diagnostics *diagnostics
 	}
 
 	return diagnosticsReport, nil
-}
-
-var allowedMetricsSuffixes = []string{"upstream_rq_total", "upstream_rq_time", "upstream_rq_5xx"} //nolint:gochecknoglobals // constant
-
-// MetricsRelayHandler is invoked as a callback when the agent receive metrics from Envoy (sink).
-// It stores metrics in a.aggregatedMetrics.
-func (a *Agent) MetricsRelayHandler(
-	ctx context.Context,
-	in *envoyMetrics.StreamMetricsMessage,
-) {
-	metrics := in.GetEnvoyMetrics()
-	newMetrics := make([]*ioPrometheusClient.MetricFamily, 0, len(metrics))
-	for _, metricFamily := range metrics {
-		for _, suffix := range allowedMetricsSuffixes {
-			if strings.HasSuffix(metricFamily.GetName(), suffix) {
-				newMetrics = append(newMetrics, metricFamily)
-				break
-			}
-		}
-	}
-
-	p, ok := peer.FromContext(ctx)
-	if !ok {
-		dlog.Warnf(ctx, "peer not found in context")
-		return
-	}
-	instanceID := p.Addr.String()
-
-	// Store metrics. Overwrite old metrics from the same instance of edgisarry
-	dlog.Debugf(ctx, "Append %d metric(s) to stack from %s",
-		len(newMetrics), instanceID,
-	)
-
-	if len(newMetrics) > 0 {
-		a.metricsRelayMutex.Lock()
-		a.aggregatedMetrics[instanceID] = newMetrics
-		a.metricsRelayMutex.Unlock()
-	}
 }
 
 // ClearComm ends the current connection to the Director, if it exists, thereby
