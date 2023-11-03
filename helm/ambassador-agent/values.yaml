@@ -58,10 +58,12 @@ autoscaling:
   # targetMemoryUtilizationPercentage: 80
 
 edgestack:
-#  agent:
-#    name:
-#    namespace:
-#    snapshotPort:
+# agent:
+#   name:
+#   namespace: 
+#   snapshotPort: 
+#   diagnosticsPort: 
+#   reportDiagnostics: 
 
 rpcAddress: ""
 
