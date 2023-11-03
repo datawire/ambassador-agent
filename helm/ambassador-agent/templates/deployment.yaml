@@ -56,7 +56,11 @@ spec:
             {{- with .Values.edgestack.agent }}
             - name: AES_SNAPSHOT_URL
               value: "http://{{ required "A value must be entered for all edgestack.agent entries" .name  }}-admin.{{ required "A value must be entered for all edgestack.agent entries" .namespace }}:{{ required "A value must be entered for all edgestack.agent entries" .snapshotPort }}/snapshot-external"
+            - name: AES_DIAGNOSTICS_URL
+              value: "http://{{ required "A value must be entered for all edgestack.agent entries" .name  }}-admin.{{ required "A value must be entered for all edgestack.agent entries" .namespace }}:{{ required "A value must be entered for all edgestack.agent entries" .diagnosticsPort }}/ambassador/v0/diag/?json=true"
             {{- end }}
+            - name: AES_REPORT_DIAGNOSTICS_TO_CLOUD
+              value: {{ .Values.edgestack.agent.reportDiagnostics | default "true"  }}
             {{- end }}
             {{- end }}
             {{ if .Values.rbac.namespaces }}
