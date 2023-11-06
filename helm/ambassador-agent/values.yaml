@@ -10,6 +10,8 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+replicaCount: 1
+
 serviceAccount:
   # Specifies whether a service account should be created
   create: true

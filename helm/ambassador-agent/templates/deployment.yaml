@@ -60,7 +60,7 @@ spec:
               value: "http://{{ required "A value must be entered for all edgestack.agent entries" .name  }}-admin.{{ required "A value must be entered for all edgestack.agent entries" .namespace }}:{{ required "A value must be entered for all edgestack.agent entries" .diagnosticsPort }}/ambassador/v0/diag/?json=true"
             {{- end }}
             - name: AES_REPORT_DIAGNOSTICS_TO_CLOUD
-              value: {{ .Values.edgestack.agent.reportDiagnostics | default "true"  }}
+              value: "{{ .Values.edgestack.agent.reportDiagnostics | default true  }}"
             {{- end }}
             {{- end }}
             {{ if .Values.rbac.namespaces }}
