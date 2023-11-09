@@ -496,13 +496,7 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 					dlog.Warnf(ctx, "Error getting snapshot from ambassador %+v", err)
 				}
 			} else {
-				if a.clusterId == "" {
-					ns := "default"
-					if len(a.NamespacesToWatch) > 0 {
-						ns = a.AgentNamespace
-					}
-					a.clusterId = a.getClusterID(ctx, ns) // get cluster id for ambMeta
-				}
+				a.clusterId = a.getClusterID(ctx, a.AgentNamespace) // get cluster id for ambMeta
 				snapshot = &snapshotTypes.Snapshot{
 					AmbassadorMeta: &snapshotTypes.AmbassadorMetaInfo{
 						ClusterID: a.clusterId,
