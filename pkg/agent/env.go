@@ -28,7 +28,8 @@ type Env struct {
 	// agent namespace is... the namespace the agent is running in.
 	// but more importantly, it's the namespace that the config resource lives in (which is
 	// either a ConfigMap or Secret)
-	AgentNamespace string `env:"AGENT_NAMESPACE, parser=string, default=ambassador"`
+	AgentNamespace   string `env:"AGENT_NAMESPACE, parser=string, default=ambassador"`
+	AgentServiceName string `env:"AGENT_SERVICE_NAME, parser=string, default=ambassador-agent"`
 
 	// Name of the k8s ConfigMap or Secret the CLOUD_CONNECT_TOKEN exists on. We're supporting
 	// both Secrets and ConfigMaps here because it is likely in an enterprise cluster, the RBAC
