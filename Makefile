@@ -106,11 +106,13 @@ push-ximage: image
 	docker buildx build --build-arg A8R_AGENT_VERSION=$(A8R_AGENT_VERSION) --push --platform=linux/amd64,linux/arm64 --tag=$(IMAGE) .
 
 .PHONY: push-image
-push-image: image
+push-image:
 	if docker pull $(IMAGE); then \
 	  printf "Failure: Tag already exists\n"; \
 	  exit 1; \
 	fi
+	mkdir -p $(BUILDDIR)
+	echo $(IMAGE_VERSION) > $(BUILDDIR)/version.txt
 	docker build --build-arg A8R_AGENT_VERSION=$(A8R_AGENT_VERSION) --tag=$(IMAGE) .
 	docker push $(IMAGE)
 
@@ -130,10 +132,45 @@ go-unit-test:
 	go test ./cmd/... -race
 	go test ./pkg/... -race
 
+TOOLSDIR = tools
+
+tools/helm = $(TOOLSDIR)/bin/helm
+HELM_VERSION=$(shell go mod edit -json | jq -r '.Require[] | select (.Path == "helm.sh/helm/v3") | .Version')
+HELM_TGZ = https://get.helm.sh/helm-$(HELM_VERSION)-$(GOHOSTOS)-$(GOHOSTARCH).tar.gz
+$(BUILDDIR)/$(notdir $(HELM_TGZ)):
+	mkdir -p $(@D)
+	curl -sfL $(HELM_TGZ) -o $@
+
+%/helm: $(BUILDDIR)/$(notdir $(HELM_TGZ))
+	mkdir -p $(@D)
+	tar -C $(@D) -zxmf $< --strip-components=1 $(GOHOSTOS)-$(GOHOSTARCH)/helm
+
+# Ensure that the Helm repo index is up to date
+HELM_REPO_NAME ?= datawire
+HELM_REPO_URL ?= https://app.getambassador.io
+
+$(BUILDDIR)/.helm-update-ts: $(tools/helm)
+	mkdir -p $(BUILDDIR)
+	$(tools/helm) repo add --force-update $(HELM_REPO_NAME) $(HELM_REPO_URL)
+	$(tools/helm) repo update
+	touch $@
+
 .PHONY: apply
-apply: push-image
-	helm install ambassador-agent ./helm/ambassador-agent -n ambassador --set image.fullImageOverride=$(IMAGE) --set logLevel=DEBUG --set cloudConnectToken=$(APIKEY)
+apply: push-image $(tools/helm)
+	$(tools/helm) install ambassador-agent ./helm/ambassador-agent -n ambassador --set image.fullImageOverride=$(IMAGE) --set logLevel=DEBUG --set cloudConnectToken=$(APIKEY)
 
 .PHONY: delete
 delete:
-	helm delete ambassador-agent -n ambassador
+	$(tools/helm) delete ambassador-agent -n ambassador
+
+.PHONY: private-registry
+private-registry: $(tools/helm) ## (Test) Add a private docker registry to the current k8s cluster and make it available on localhost:5000.
+	mkdir -p $(BUILDDIR)
+	$(tools/helm) repo add twuni https://helm.twun.io
+	$(tools/helm) repo update
+	$(tools/helm) install --set image.tag=2.8.1,configData.storage.cache.blobdescriptor=inmemory,configData.storage.cache.blobdescriptorsize=10000 docker-registry twuni/docker-registry
+	kubectl apply -f k8s/private-reg-proxy.yaml
+	kubectl rollout status -w daemonset/private-registry-proxy
+	sleep 5
+	kubectl wait --for=condition=ready pod --all
+	kubectl port-forward daemonset/private-registry-proxy 5000:5000 &
