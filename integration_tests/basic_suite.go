@@ -1,38 +1,25 @@
-package basic_test
+package itest
 
 import (
 	"context"
 	"os"
-	"testing"
-
-	"github.com/stretchr/testify/suite"
-
-	itest "github.com/datawire/ambassador-agent/integration_tests"
+	"time"
 )
 
 const agentImageEnvVar = "AMBASSADOR_AGENT_DOCKER_IMAGE"
 
 type BasicTestSuite struct {
-	itest.Suite
+	Suite
 
 	namespaces []string
 
-	agentComServer *itest.AgentCom
-}
-
-func TestBasicTestSuite_Clusterwide(t *testing.T) {
-	suite.Run(t, &BasicTestSuite{})
-}
-
-func TestBasicTestSuite_NamespaceScoped(t *testing.T) {
-	suite.Run(t, &BasicTestSuite{
-		namespaces: []string{"default"},
-	})
+	agentComServer *AgentCom
 }
 
 func (s *BasicTestSuite) SetupSuite() {
 	s.Init()
-	s.NotEmpty(os.Getenv(agentImageEnvVar),
+	agentImage := os.Getenv(agentImageEnvVar)
+	s.Require().NotEmpty(agentImage,
 		"%s needs to be set", agentImageEnvVar,
 	)
 
@@ -43,19 +30,24 @@ func (s *BasicTestSuite) SetupSuite() {
 	})
 
 	var err error
-	s.agentComServer, err = itest.NewAgentCom("agentcom-server", s.Namespace(), s.Config())
+	s.agentComServer, err = NewAgentCom("agentcom-server", s.Namespace(), s.Config())
 	s.Require().NoError(err)
 	acCleanup, err := s.agentComServer.Install(ctx)
 	s.Require().NoError(err)
 	s.Cleanup(acCleanup)
+	time.Sleep(time.Second)
 
-	installationConfig := itest.InstallationConfig{
+	installationConfig := InstallationConfig{
 		ReleaseName: s.Name(),
 		Namespace:   s.Namespace(),
-		ChartDir:    "../../helm/ambassador-agent",
+		ChartDir:    "../helm/ambassador-agent",
 		Values: map[string]any{
 			"cloudConnectToken": "TOKEN",
+			"logLevel":          "debug",
 			"rpcAddress":        s.agentComServer.RPCAddress(),
+			"image": map[string]any{
+				"fullImageOverride": agentImage,
+			},
 		},
 
 		RESTConfig: s.Config(),
@@ -66,7 +58,7 @@ func (s *BasicTestSuite) SetupSuite() {
 			"namespaces": s.namespaces,
 		}
 	}
-	uninstallHelmChart, err := itest.InstallHelmChart(ctx, installationConfig)
+	uninstallHelmChart, err := InstallHelmChart(ctx, installationConfig)
 	s.Require().NoError(err)
 	s.Cleanup(uninstallHelmChart)
 }

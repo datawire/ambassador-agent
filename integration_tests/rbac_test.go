@@ -1,4 +1,4 @@
-package basic_test
+package itest
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -24,6 +24,7 @@ type Suite struct {
 	k8sIf     kubernetes.Interface
 	namespace string
 	name      string
+	cleanups  []func(context.Context) error
 }
 
 func (s *Suite) K8sIf() kubernetes.Interface {
@@ -47,7 +48,6 @@ func (s *Suite) Namespace() string {
 }
 
 func (s *Suite) Init() {
-	s.namespace = "ambassador-test"
 	s.name = "ambassador-agent"
 	s.ctx = dlog.NewTestContext(s.T(), false)
 	kubeconfigPath := os.Getenv("KUBECONFIG")
@@ -61,9 +61,20 @@ func (s *Suite) Init() {
 }
 
 func (s *Suite) Cleanup(f func(context.Context) error) {
-	s.T().Cleanup(func() {
-		s.NoError(f(s.ctx))
-	})
+	s.cleanups = append(s.cleanups, f)
+}
+
+func (s *Suite) TearDownSuite() {
+	for {
+		cs := s.cleanups
+		s.cleanups = nil
+		for i := len(cs) - 1; i >= 0; i-- {
+			s.NoError(cs[i](s.ctx))
+		}
+		if len(s.cleanups) == 0 {
+			break
+		}
+	}
 }
 
 func (s *Suite) CreateNamespace(ctx context.Context, ns string) error {

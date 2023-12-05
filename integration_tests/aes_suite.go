@@ -1,4 +1,4 @@
-package aes_test
+package itest
 
 import (
 	"context"
@@ -8,18 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"testing"
 	"time"
 
-	"github.com/stretchr/testify/suite"
-
-	itest "github.com/datawire/ambassador-agent/integration_tests"
 	"github.com/datawire/dlib/dexec"
-)
-
-const (
-	agentImageEnvVar = "AMBASSADOR_AGENT_DOCKER_IMAGE"
-	katImageEnvVar   = "KAT_SERVER_DOCKER_IMAGE"
 )
 
 func edgeStackHelmChartURL(version string) string {
@@ -31,12 +22,8 @@ func edgeStackHelmChartURL(version string) string {
 }
 
 type AESTestSuite struct {
-	itest.Suite
-	agentComServer *itest.AgentCom
-}
-
-func TestBasicTestSuite_Clusterwide(t *testing.T) {
-	suite.Run(t, &AESTestSuite{})
+	Suite
+	agentComServer *AgentCom
 }
 
 func (s *AESTestSuite) SetupSuite() {
@@ -44,7 +31,10 @@ func (s *AESTestSuite) SetupSuite() {
 	tempDir, err := os.MkdirTemp("", "")
 	s.Require().NoError(err)
 
-	s.Require().NotEmpty(os.Getenv(agentImageEnvVar), "%s needs to be set", agentImageEnvVar)
+	agentImage := os.Getenv(agentImageEnvVar)
+	s.Require().NotEmpty(agentImage,
+		"%s needs to be set", agentImageEnvVar,
+	)
 
 	ctx := s.Context()
 	s.Require().NoError(s.CreateNamespace(ctx, s.Namespace()))
@@ -53,7 +43,7 @@ func (s *AESTestSuite) SetupSuite() {
 	})
 
 	// install agentcom server
-	s.agentComServer, err = itest.NewAgentCom("agentcom-server", s.Namespace(), s.Config())
+	s.agentComServer, err = NewAgentCom("agentcom-server", s.Namespace(), s.Config())
 	s.Require().NoError(err)
 	acCleanup, err := s.agentComServer.Install(ctx)
 	s.Require().NoError(err)
@@ -90,20 +80,24 @@ func (s *AESTestSuite) SetupSuite() {
 
 	fmt.Printf("aesChartPath: %s\n\n", aesChartPath)
 
-	installationConfig := itest.InstallationConfig{
+	installationConfig := InstallationConfig{
 		ReleaseName: "aes",
 		Namespace:   s.Namespace(),
 		ChartDir:    filepath.Join(tempDir, "edge-stack"),
 		Values: map[string]any{
 			"agent": map[string]any{
 				"cloudConnectToken": "TOKEN",
+				"logLevel":          "debug",
 				"rpcAddress":        s.agentComServer.RPCAddress(),
+				"image": map[string]any{
+					"fullImageOverride": agentImage,
+				},
 			},
 		},
 		RESTConfig: s.Config(),
 		Log:        s.T().Logf,
 	}
-	uninstallHelmChart, err := itest.InstallHelmChart(ctx, installationConfig)
+	uninstallHelmChart, err := InstallHelmChart(ctx, installationConfig)
 	s.Require().NoError(err)
 	s.Cleanup(uninstallHelmChart)
 

@@ -108,7 +108,7 @@ push-ximage: image
 .PHONY: push-image
 push-image: image
 	if docker pull $(IMAGE); then \
-	  print "Failure: Tag already exists"; \
+	  printf "Failure: Tag already exists\n"; \
 	  exit 1; \
 	fi
 	docker build --build-arg A8R_AGENT_VERSION=$(A8R_AGENT_VERSION) --tag=$(IMAGE) .
@@ -122,7 +122,7 @@ image-tar: image
 .PHONY: go-integration-test
 go-integration-test:
 	go mod download
-	go test -parallel 1 ./integration_tests/... -race
+	go test -v -parallel 1 ./integration_tests/...
 
 .PHONY: go-unit-test
 go-unit-test:
