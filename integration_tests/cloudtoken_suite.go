@@ -1,42 +1,37 @@
-package cloudtoken_test
+package itest
 
 import (
 	"context"
 	"os"
-	"testing"
-
-	"github.com/stretchr/testify/suite"
-
-	itest "github.com/datawire/ambassador-agent/integration_tests"
 )
 
-const (
-	agentImageEnvVar = "AMBASSADOR_AGENT_DOCKER_IMAGE"
-	katImageEnvVar   = "KAT_SERVER_DOCKER_IMAGE"
-)
+const katImageEnvVar = "KAT_SERVER_DOCKER_IMAGE"
 
 type CloudTokenTestSuite struct {
-	itest.Suite
-}
-
-func Test_Run(t *testing.T) {
-	suite.Run(t, &CloudTokenTestSuite{})
+	Suite
 }
 
 func (s *CloudTokenTestSuite) SetupSuite() {
 	s.Init()
 
-	s.NotEmpty(os.Getenv(agentImageEnvVar),
+	agentImage := os.Getenv(agentImageEnvVar)
+	s.Require().NotEmpty(agentImage,
 		"%s needs to be set", agentImageEnvVar,
 	)
 	s.NotEmpty(os.Getenv(katImageEnvVar),
 		"%s needs to be set", katImageEnvVar,
 	)
 
-	installationConfig := itest.InstallationConfig{
+	installationConfig := InstallationConfig{
 		ReleaseName: s.Name(),
 		Namespace:   s.Namespace(),
-		ChartDir:    "../../helm/ambassador-agent",
+		ChartDir:    "../helm/ambassador-agent",
+		Values: map[string]any{
+			"logLevel": "debug",
+			"image": map[string]any{
+				"fullImageOverride": agentImage,
+			},
+		},
 
 		RESTConfig: s.Config(),
 		Log:        s.T().Logf,
@@ -46,7 +41,7 @@ func (s *CloudTokenTestSuite) SetupSuite() {
 		return s.DeleteNamespace(ctx, s.Namespace())
 	})
 
-	uninstallHelmChart, err := itest.InstallHelmChart(s.Context(), installationConfig)
+	uninstallHelmChart, err := InstallHelmChart(s.Context(), installationConfig)
 	s.Require().NoError(err)
 	s.Cleanup(uninstallHelmChart)
 }

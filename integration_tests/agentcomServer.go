@@ -15,11 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"github.com/datawire/ambassador-agent/pkg/api/agent"
-
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/datawire/ambassador-agent/pkg/api/agent"
 )
 
 const defaultKATServerImage = "docker.io/datawiredev/kat-server:3.0.1-0.20220817135951-2cb28ef4f415"

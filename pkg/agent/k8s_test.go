@@ -52,7 +52,7 @@ func TestWatchGeneric(t *testing.T) {
 	defaultRunFunc := func(handler cache.ResourceEventHandler) {
 		obj := &unstructured.Unstructured{}
 		obj.SetName("obj1-added")
-		handler.OnAdd(obj)
+		handler.OnAdd(obj, false)
 
 		objNew := &unstructured.Unstructured{}
 		objNew.SetName("obj1-new")
@@ -104,7 +104,7 @@ func TestWatchGeneric(t *testing.T) {
 		informerRunFunc := func(handler cache.ResourceEventHandler) {
 			obj := &unstructured.Unstructured{}
 			obj.SetName("obj1-added")
-			handler.OnAdd(obj)
+			handler.OnAdd(obj, false)
 		}
 		ctx, cancel := context.WithCancel(dlog.NewTestContext(t, false))
 		cancel()

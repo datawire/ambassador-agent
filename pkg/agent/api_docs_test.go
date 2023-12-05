@@ -141,7 +141,7 @@ func TestAPIDocsStore(t *testing.T) {
 					Name:      "some-endpoint",
 					Namespace: "default",
 				},
-				Data: []byte(`{"components":{},"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-hostname/prefix"}]}`),
+				Data: []byte(`{"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-hostname/prefix"}]}`),
 			}},
 		},
 		{
@@ -184,7 +184,7 @@ func TestAPIDocsStore(t *testing.T) {
 					Name:      "some-endpoint",
 					Namespace: "default",
 				},
-				Data: []byte(`{"components":{},"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":""}]}`),
+				Data: []byte(`{"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":""}]}`),
 			}},
 		},
 		{
@@ -229,7 +229,7 @@ func TestAPIDocsStore(t *testing.T) {
 					Name:      "some-endpoint",
 					Namespace: "default",
 				},
-				Data: []byte(`{"components":{},"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-host/prefix"}]}`),
+				Data: []byte(`{"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-host/prefix"}]}`),
 			}},
 		},
 		{
@@ -274,7 +274,7 @@ func TestAPIDocsStore(t *testing.T) {
 					Name:      "some-endpoint",
 					Namespace: "default",
 				},
-				Data: []byte(`{"components":{},"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-host/prefix"}]}`),
+				Data: []byte(`{"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-host/prefix"}]}`),
 			}},
 		},
 		{
@@ -319,7 +319,7 @@ func TestAPIDocsStore(t *testing.T) {
 					Name:      "some-endpoint",
 					Namespace: "default",
 				},
-				Data: []byte(`{"components":{},"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-host/prefix"}]}`),
+				Data: []byte(`{"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-host/prefix"}]}`),
 			}},
 		},
 		{
@@ -364,7 +364,7 @@ func TestAPIDocsStore(t *testing.T) {
 					Name:      "some-endpoint",
 					Namespace: "default",
 				},
-				Data: []byte(`{"components":{},"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-host/subpath/prefix"}]}`),
+				Data: []byte(`{"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-host/subpath/prefix"}]}`),
 			}},
 		},
 		{
@@ -409,7 +409,7 @@ func TestAPIDocsStore(t *testing.T) {
 					Name:      "some-endpoint",
 					Namespace: "default",
 				},
-				Data: []byte(`{"components":{},"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-host/prefix1/prefix"}]}`),
+				Data: []byte(`{"info":{"title":"Sample API","version":"0.0"},"openapi":"3.0.0","paths":{},"servers":[{"url":"mapping-host/prefix1/prefix"}]}`),
 			}},
 		},
 	}

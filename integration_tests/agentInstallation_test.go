@@ -1,35 +1,45 @@
-package aes_test
+package itest
 
 import (
 	"context"
+	"os"
 	"strings"
 	"time"
 
-	itest "github.com/datawire/ambassador-agent/integration_tests"
 	"github.com/datawire/dlib/dlog"
 )
 
 func (s *AESTestSuite) TestAgentInstallation() {
-	installationConfig := itest.InstallationConfig{
+	agentImage := os.Getenv(agentImageEnvVar)
+	s.Require().NotEmpty(agentImage,
+		"%s needs to be set", agentImageEnvVar,
+	)
+	installationConfig := InstallationConfig{
 		ReleaseName: s.Name(),
 		Namespace:   s.Namespace(),
-		ChartDir:    "../../helm/ambassador-agent",
+		ChartDir:    "../helm/ambassador-agent",
 		Values: map[string]any{
 			"rpcAddress": s.agentComServer.RPCAddress(),
+			"logLevel":   "debug",
+			"image": map[string]any{
+				"fullImageOverride": agentImage,
+			},
 		},
 
 		RESTConfig: s.Config(),
 		Log:        s.T().Logf,
 	}
 	ctx := s.Context()
-	uninstallHelmChart, err := itest.InstallHelmChart(ctx, installationConfig)
+	uninstallHelmChart, err := InstallHelmChart(ctx, installationConfig)
 	s.Require().NoError(err)
-	s.Cleanup(uninstallHelmChart)
+	defer func() {
+		s.NoError(uninstallHelmChart(ctx))
+	}()
 
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 
-	logLines, err := itest.NewPodLogChan(ctx, s.K8sIf(), itest.AgentLabelSelector, s.Namespace(), true)
+	logLines, err := NewPodLogChan(ctx, s.K8sIf(), AgentLabelSelector, s.Namespace(), true)
 	s.Require().NoError(err)
 
 	var succ bool

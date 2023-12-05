@@ -1,15 +1,10 @@
-package basic_test
+package itest
 
 import (
-	"time"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func (s *BasicTestSuite) TestStayAlive() {
-	// lets make sure the agent came up and stays up
-	time.Sleep(5 * time.Second)
-
 	pods, err := s.K8sIf().CoreV1().Pods(s.Namespace()).List(s.Context(), metav1.ListOptions{
 		LabelSelector: "app.kubernetes.io/name=ambassador-agent",
 	})

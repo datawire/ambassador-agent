@@ -563,7 +563,13 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 		_, err = w.Write(enSnapshot)
 		assert.NoError(t, err)
 	}))
-	defer ts.Close()
+	tsClosed := false
+	defer func() {
+		// If we missed closing the server due to a fatal error
+		if !tsClosed {
+			ts.Close()
+		}
+	}()
 	a.AESSnapshotURL = parseURL(t, ts.URL)
 	mockError := errors.New("MockClient: Error sending report")
 
@@ -609,6 +615,9 @@ func TestWatchErrorSendingSnapshot(t *testing.T) {
 		cancel()
 		t.Fatal("Timed out waiting for report to complete.")
 	}
+	ts.Close()
+	tsClosed = true
+
 	select {
 	case err := <-watchDone:
 		assert.Nil(t, err)

@@ -1,4 +1,4 @@
-package cloudtoken_test
+package itest
 
 import (
 	"context"
@@ -7,8 +7,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	itest "github.com/datawire/ambassador-agent/integration_tests"
 )
 
 func (s *CloudTokenTestSuite) TestCloudTokenWithSecret() {
@@ -25,14 +23,14 @@ func (s *CloudTokenTestSuite) TestCloudTokenWithSecret() {
 	scAPI := s.K8sIf().CoreV1().Secrets(s.Namespace())
 	_, err := scAPI.Create(ctx, &secret, metav1.CreateOptions{})
 	s.Require().NoError(err)
-	s.Cleanup(func(ctx context.Context) error {
-		return scAPI.Delete(ctx, secret.ObjectMeta.Name, metav1.DeleteOptions{})
-	})
+	defer func() {
+		s.NoError(scAPI.Delete(s.Context(), secret.ObjectMeta.Name, metav1.DeleteOptions{}))
+	}()
 
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	logLines, err := itest.NewPodLogChan(ctx, s.K8sIf(), itest.AgentLabelSelector, s.Namespace(), true)
+	logLines, err := NewPodLogChan(ctx, s.K8sIf(), AgentLabelSelector, s.Namespace(), true)
 	s.Require().NoError(err)
 
 	var succ bool
@@ -60,14 +58,14 @@ func (s *CloudTokenTestSuite) TestCloudTokenWithConfigMap() {
 	scAPI := s.K8sIf().CoreV1().ConfigMaps(s.Namespace())
 	_, err := scAPI.Create(ctx, &cm, metav1.CreateOptions{})
 	s.Require().NoError(err)
-	s.Cleanup(func(ctx context.Context) error {
-		return scAPI.Delete(ctx, cm.ObjectMeta.Name, metav1.DeleteOptions{})
-	})
+	defer func() {
+		s.NoError(scAPI.Delete(s.Context(), cm.ObjectMeta.Name, metav1.DeleteOptions{}))
+	}()
 
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	logLines, err := itest.NewPodLogChan(ctx, s.K8sIf(), itest.AgentLabelSelector, s.Namespace(), true)
+	logLines, err := NewPodLogChan(ctx, s.K8sIf(), AgentLabelSelector, s.Namespace(), true)
 	s.Require().NoError(err)
 
 	var succ bool
@@ -82,10 +80,10 @@ func (s *CloudTokenTestSuite) TestCloudTokenWithConfigMap() {
 
 func (s *CloudTokenTestSuite) TestNoCloudToken() {
 	ctx := s.Context()
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	logLines, err := itest.NewPodLogChan(ctx, s.K8sIf(), itest.AgentLabelSelector, s.Namespace(), true)
+	logLines, err := NewPodLogChan(ctx, s.K8sIf(), AgentLabelSelector, s.Namespace(), true)
 	s.Require().NoError(err)
 
 	var succ bool

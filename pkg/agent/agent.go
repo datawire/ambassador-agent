@@ -22,11 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates"
-	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
-	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
-
 	// load all auth plugins.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
@@ -35,6 +30,10 @@ import (
 	rpc "github.com/datawire/ambassador-agent/rpc/agent"
 	"github.com/datawire/dlib/dlog"
 	"github.com/datawire/k8sapi/pkg/k8sapi"
+	diagnosticsTypes "github.com/emissary-ingress/emissary/v3/pkg/diagnostics/v1"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates"
+	"github.com/emissary-ingress/emissary/v3/pkg/kates/k8s_resource_types"
+	snapshotTypes "github.com/emissary-ingress/emissary/v3/pkg/snapshot/v1"
 )
 
 const defaultMinReportPeriod = 30 * time.Second
@@ -136,14 +135,7 @@ func NewAgent(
 		)
 	}
 
-	apiSvc := "kubernetes.default"
-	var clusterDomain string
-	if cn, err := net.LookupCNAME(apiSvc); err != nil {
-		dlog.Infof(ctx, `Unable to determine cluster domain from CNAME of %s: %v"`, err, apiSvc)
-		clusterDomain = "cluster.local"
-	} else {
-		clusterDomain = cn[len(apiSvc)+5 : len(cn)-1] // Strip off "kubernetes.default.svc." and trailing dot
-	}
+	clusterDomain := getClusterDomain(ctx, env)
 	dlog.Infof(ctx, "Using cluster domain %q", clusterDomain)
 
 	return &Agent{
@@ -161,6 +153,43 @@ func NewAgent(
 		fallbackWatcher:   watchers.NewFallbackWatcher(ctx, env.NamespacesToWatch, objectModifier),
 		clusterDomain:     clusterDomain,
 	}
+}
+
+func getClusterDomain(ctx context.Context, env *Env) string {
+	const defaultDomain = "cluster.local"
+	client := k8sapi.GetK8sInterface(ctx).CoreV1()
+	qn := env.AgentServiceName + "." + env.AgentNamespace
+	sc, err := client.Services(env.AgentNamespace).Get(ctx, env.AgentServiceName, metav1.GetOptions{})
+	if err != nil {
+		dlog.Errorf(ctx, `Unable get service %q: %v"`, qn, err)
+		return defaultDomain
+	}
+	desiredMatch := qn + ".svc."
+	addr := sc.Spec.ClusterIP
+	if net.ParseIP(addr) == nil {
+		dlog.Infof(ctx, `Service %s has no ClusterIP"`, qn)
+		return defaultDomain
+	}
+
+	for retry := 0; retry <= 2; retry++ {
+		if retry > 0 {
+			dlog.Debugf(ctx, "retry %d of reverse lookup of agent-injector", retry+1)
+		}
+		if names, err := net.LookupAddr(addr); err == nil {
+			for _, name := range names {
+				if strings.HasPrefix(name, desiredMatch) {
+					name = name[len(desiredMatch) : len(name)-1]
+					dlog.Infof(ctx, `Cluster domain derived from reverse lookup of %q = %q`, qn, name)
+					return name
+				}
+			}
+		}
+		// If no reverse lookups are found containing the cluster domain, then that's probably because the
+		// DNS for the service isn't completely setup yet.
+		time.Sleep(300 * time.Millisecond)
+	}
+	dlog.Infof(ctx, `Unable to determine cluster domain from CNAME of %q"`, qn)
+	return defaultDomain
 }
 
 func (a *Agent) StopReporting(ctx context.Context) {

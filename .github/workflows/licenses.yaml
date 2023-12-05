@@ -2,9 +2,6 @@ name: "License verification"
 on:
   pull_request:
 
-env:
-  GO_VERSION: 1.19.5
-
 jobs:
   dependency_info_linux:
     name: "Verify use of forbidden licenses"
@@ -19,7 +16,7 @@ jobs:
           ref: "${{ github.event.pull_request.head.sha }}"
       - uses: actions/setup-go@v3
         with:
-          go-version: "${{env.GO_VERSION}}"
+          go-version: stable
       - name: "Generate dependency information"
         shell: bash
         run: make generate
