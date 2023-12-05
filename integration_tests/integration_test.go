@@ -12,7 +12,8 @@ func TestAll(t *testing.T) {
 	})
 	suite.Run(t, &BasicTestSuite{
 		Suite:      Suite{namespace: "ambassador-default"},
-		namespaces: []string{"default"}})
+		namespaces: []string{"default"},
+	})
 	suite.Run(t, &AESTestSuite{
 		Suite: Suite{namespace: "ambassador-aes"},
 	})
