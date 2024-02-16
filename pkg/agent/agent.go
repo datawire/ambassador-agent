@@ -522,7 +522,9 @@ func (a *Agent) watch( //nolint:gocognit,cyclop // TODO: Refactor this function
 			if a.emissaryPresent {
 				snapshot, err = getAmbSnapshotInfo(a.AESSnapshotURL)
 				if err != nil {
-					dlog.Warnf(ctx, "Error getting snapshot from ambassador %+v", err)
+					dlog.Warnf(ctx, "Error getting snapshot from ambassador, snpashot url: %v, err: %+v", a.AESSnapshotURL, err)
+				} else {
+					dlog.Debug(ctx, "Successfully pulled a snapshot from ambassador")
 				}
 			} else {
 				a.clusterId = a.getClusterID(ctx, a.AgentNamespace) // get cluster id for ambMeta
@@ -644,7 +646,9 @@ func (a *Agent) ReportDiagnostics(ctx context.Context, diagnosticsURL *url.URL) 
 	// TODO maybe put request in go-routine
 	diagnostics, err := getAmbDiagnosticsInfo(diagnosticsURL)
 	if err != nil {
-		dlog.Warnf(ctx, "Error getting diagnostics from ambassador %+v", err)
+		dlog.Warnf(ctx, "Error getting diagnostics from ambassador, url: %v, err: %+v", diagnosticsURL, err)
+	} else {
+		dlog.Debug(ctx, "Successfully pulled diagnostics info from ambassador")
 	}
 	dlog.Debug(ctx, "Received diagnostics in agent")
 	agentDiagnostics, err := a.ProcessDiagnostics(ctx, diagnostics)
