@@ -26,19 +26,18 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
-          go-version: stable
+          go-version-file: go.mod
       - name: Setup kubectl
         uses: azure/setup-kubectl@v3
         id: kubectl
       - name: Provision Kubeception cluster
         id: kluster
-        uses: datawire/infra-actions/provision-cluster@v0.2.6
+        uses: datawire/infra-actions/provision-cluster@v0.2.8
         with:
           distribution: Kubeception
           version: 1.26
           kubeconfig: ${{ env.KUBECONFIG }}
           kubeceptionToken: ${{ secrets.DEV_AMBASSADOR_AGENT_KUBECEPTION_TOKEN }}
-          gkeCredentials: '{"project_id": "foo"}' # See https://github.com/datawire/infra-actions/issues/66
       - name: Add a private image registry to the cluster
         run: make private-registry
       - name: Build image
