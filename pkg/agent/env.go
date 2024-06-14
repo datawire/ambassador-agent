@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -134,6 +135,37 @@ func LoadEnv(lookupFunc func(string) (string, bool)) (*Env, error) {
 	warn, fatal := parser.ParseFromEnv(&env, lookupFunc)
 	errs = append(errs, warn...)
 	errs = append(errs, fatal...)
+
+	// TODO: the parsing of the following two urls are re-done manually here here since
+	// when the deployment specifies a url with characters that need to be escapes like `?`/`=`
+	// Kubernetes automatically adds the backslash when applying the manifest. This messes up the parsing
+	// since it is expecting a clean URL. This can probably be remedied with the longer term goal of
+	// getting rid of the envconfig package from emissary
+
+	snapshotURLEnv, ok := lookupFunc("AES_SNAPSHOT_URL")
+	if !ok {
+		snapshotURLEnv = "http://ambassador-admin:8005/snapshot-external"
+	} else {
+		snapshotURLEnv = strings.ReplaceAll(snapshotURLEnv, "\\", "")
+	}
+	snapshotURL, err := url.Parse(snapshotURLEnv)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("error parsing AES_SNAPSHOT_URL as a url: %v", err.Error()))
+	}
+	env.AESSnapshotURL = snapshotURL
+
+	diagnosticsURLEnv, ok := lookupFunc("AES_DIAGNOSTICS_URL")
+	if !ok {
+		diagnosticsURLEnv = "http://ambassador-admin:8877/ambassador/v0/diag/?json=true"
+	} else {
+		diagnosticsURLEnv = strings.ReplaceAll(diagnosticsURLEnv, "\\", "")
+	}
+	diagnosticsURL, err := url.Parse(diagnosticsURLEnv)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("error parsing AES_DIAGNOSTICS_URL as a url: %v", err.Error()))
+	}
+	env.AESDiagnosticsURL = diagnosticsURL
+
 	if len(errs) > 0 {
 		return nil, errs
 	}
